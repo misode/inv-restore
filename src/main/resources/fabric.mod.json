@@ -1,0 +1,28 @@
+{
+  "schemaVersion": 1,
+  "id": "invrestore",
+  "version": "${version}",
+  "name": "InvRestore",
+  "description": "",
+  "authors": [
+    "Misode"
+  ],
+  "contact": {},
+  "license": "MIT",
+  "icon": "assets/invrestore/icon.png",
+  "environment": "*",
+  "entrypoints": {
+    "main": [
+      "io.github.misode.invrestore.InvRestore"
+    ]
+  },
+  "mixins": [
+    "invrestore.mixins.json"
+  ],
+  "depends": {
+    "fabric-permissions-api-v0": "*",
+    "fabricloader": ">=${loader_version}",
+    "fabric": "*",
+    "minecraft": "${minecraft_version}"
+  }
+}
