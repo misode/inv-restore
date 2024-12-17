@@ -5,6 +5,7 @@ import com.mojang.serialization.codecs.RecordCodecBuilder;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.inventory.PlayerEnderChestContainer;
+import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.component.ItemContainerContents;
 
 import java.util.stream.Stream;
@@ -29,10 +30,14 @@ public record ItemContents(ItemContainerContents inventory, ItemContainerContent
     }
 
     public int stackCount() {
-        return Stream.of(this.inventory, this.armor, this.offhand, this.enderChest)
-                .flatMap(ItemContainerContents::stream)
-                .filter(item -> !item.isEmpty())
+        return this.allItems()
                 .mapToInt(item -> 1)
                 .sum();
+    }
+
+    public Stream<ItemStack> allItems() {
+        return Stream.of(this.inventory, this.armor, this.offhand, this.enderChest)
+                .flatMap(ItemContainerContents::stream)
+                .filter(item -> !item.isEmpty());
     }
 }

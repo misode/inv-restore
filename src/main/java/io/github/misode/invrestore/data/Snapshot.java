@@ -10,6 +10,7 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.core.MappedRegistry;
 import net.minecraft.core.Registry;
 import net.minecraft.core.UUIDUtil;
+import net.minecraft.core.component.DataComponents;
 import net.minecraft.network.chat.ClickEvent;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.HoverEvent;
@@ -19,6 +20,9 @@ import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.util.ExtraCodecs;
 import net.minecraft.world.damagesource.DamageSource;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.Items;
+import net.minecraft.world.item.component.BundleContents;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.phys.Vec3;
 import org.jetbrains.annotations.NotNull;
@@ -89,12 +93,12 @@ public record Snapshot(String id, Event event, UUID playerUuid, String playerNam
                 .append(" ")
                 .append(this.event.formatVerb().withStyle())
                 .append(" ")
-                .append(Component.literal("(" + this.contents.stackCount() + " stacks)").withStyle(Styles.LIST_HIGHLIGHT))
+                .append(this.formatItemStacks())
                 .append(" ")
                 .append(position);
     }
 
-    public String formatTimeAgo() {
+    private String formatTimeAgo() {
         Duration duration = Duration.between(this.time, Instant.now());
         long seconds = duration.getSeconds();
         if (seconds < 60) {
@@ -108,9 +112,18 @@ public record Snapshot(String id, Event event, UUID playerUuid, String playerNam
         }
     }
 
-    public String formatFullTime() {
+    private String formatFullTime() {
         DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss").withLocale(Locale.ROOT);
         return formatter.format(this.time.atZone(ZoneId.of("UTC"))) + " (UTC)";
+    }
+
+    private Component formatItemStacks() {
+        ItemStack previewItem = Items.BUNDLE.getDefaultInstance();
+        previewItem.set(DataComponents.ITEM_NAME, Component.literal("Inventory Preview").withStyle(Styles.LIST_HIGHLIGHT));
+        previewItem.set(DataComponents.BUNDLE_CONTENTS, new BundleContents(this.contents.allItems().toList()));
+        return Component.literal("(" + this.contents.stackCount() + " stacks)")
+                .withStyle(Styles.LIST_HIGHLIGHT
+                        .withHoverEvent(new HoverEvent(HoverEvent.Action.SHOW_ITEM, new HoverEvent.ItemStackInfo(previewItem))));
     }
 
     public interface Event {
