@@ -27,8 +27,6 @@ import java.text.DecimalFormat;
 import java.text.DecimalFormatSymbols;
 import java.time.Duration;
 import java.time.Instant;
-import java.time.ZoneId;
-import java.time.format.DateTimeFormatter;
 import java.util.Locale;
 import java.util.UUID;
 
@@ -85,11 +83,6 @@ public record Snapshot(String id, Event event, UUID playerUuid, String playerNam
         } else {
             return (seconds / 86400) + "d ago";
         }
-    }
-
-    public String formatFullTime() {
-        DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss").withLocale(Locale.ROOT);
-        return formatter.format(this.time.atZone(ZoneId.of("UTC"))) + " (UTC)";
     }
 
     public String formatPos() {

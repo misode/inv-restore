@@ -23,15 +23,22 @@ import net.minecraft.world.item.Items;
 import net.minecraft.world.item.component.BundleContents;
 import net.minecraft.world.item.component.ItemLore;
 
+import java.time.DateTimeException;
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
 import java.util.List;
+import java.util.Locale;
 import java.util.Optional;
 
 import static net.minecraft.commands.Commands.argument;
 import static net.minecraft.commands.Commands.literal;
 
 public class InvRestoreCommand {
-    private static final DynamicCommandExceptionType ERROR_INVALID_TYPE = new DynamicCommandExceptionType(
-            type -> Component.literal("Invalid snapshot type " + type)
+    private static final DynamicCommandExceptionType ERROR_INVALID_EVENT_TYPE = new DynamicCommandExceptionType(
+            type -> Component.literal("Invalid event type " + type)
+    );
+    private static final DynamicCommandExceptionType ERROR_INVALID_ZONE = new DynamicCommandExceptionType(
+            zone -> Component.literal("Invalid zone " + zone)
     );
 
     public static void register(CommandDispatcher<CommandSourceStack> dispatcher, CommandBuildContext buildContext) {
@@ -48,7 +55,11 @@ public class InvRestoreCommand {
                 .then(literal("view")
                         .then(argument("id", StringArgumentType.word())
                                 .suggests((ctx, builder) -> SharedSuggestionProvider.suggest(InvRestore.getAllIds(), builder))
-                                .executes((ctx) -> viewSnapshot(ctx.getSource(), StringArgumentType.getString(ctx, "id"))))));
+                                .executes((ctx) -> viewSnapshot(ctx.getSource(), StringArgumentType.getString(ctx, "id")))))
+                .then(literal("timezone")
+                        .then(argument("zone", StringArgumentType.greedyString())
+                                .suggests((ctx, builder) -> SharedSuggestionProvider.suggest(ZoneId.getAvailableZoneIds(), builder))
+                                .executes((ctx) -> changePreferredZone(ctx.getSource(), StringArgumentType.getString(ctx, "zone"))))));
         dispatcher.register(literal("ir")
                 .requires(ctx -> Permissions.check(ctx, "invrestore", 2))
                 .redirect(ir));
@@ -63,7 +74,7 @@ public class InvRestoreCommand {
     private static int listPlayerSnapshot(CommandSourceStack ctx, String playerName, String type) throws CommandSyntaxException {
         Snapshot.EventType<?> eventType = Snapshot.EventType.REGISTRY.getValue(InvRestore.id(type));
         if (eventType == null) {
-            throw ERROR_INVALID_TYPE.create(type);
+            throw ERROR_INVALID_EVENT_TYPE.create(type);
         }
         List<Snapshot> snapshots = InvRestore
                 .findSnapshots(s -> s.playerName().equals(playerName) && s.event().getType().equals(eventType));
@@ -83,9 +94,14 @@ public class InvRestoreCommand {
         );
 
         snapshots.forEach(snapshot -> {
+            ZoneId zone = InvRestore.getPlayerPreferences(ctx.getPlayer()).timezone().orElse(ZoneId.of("UTC"));
+            DateTimeFormatter timeFormat = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss (z)").withZone(zone).withLocale(Locale.ROOT);
+            String changeTimezoneCommand = "/invrestore timezone ";
             Component time = Component.literal(snapshot.formatTimeAgo()).withStyle(Styles.LIST_DEFAULT
-                    .withHoverEvent(new HoverEvent(HoverEvent.Action.SHOW_TEXT, Component.literal(snapshot.formatFullTime())
-                            .withStyle(Styles.LIST_HIGHLIGHT)))
+                    .withHoverEvent(new HoverEvent(HoverEvent.Action.SHOW_TEXT, Component.empty()
+                            .append(Component.literal(timeFormat.format(snapshot.time())).withStyle(Styles.LIST_HIGHLIGHT))
+                            .append(Component.literal("\n(click to change timezone)").withStyle(Styles.LIST_DEFAULT))))
+                    .withClickEvent(new ClickEvent(ClickEvent.Action.SUGGEST_COMMAND, changeTimezoneCommand))
             );
 
             Component player = Component.literal(snapshot.playerName()).withStyle(Styles.LIST_HIGHLIGHT);
@@ -140,6 +156,19 @@ public class InvRestoreCommand {
             InvRestore.LOGGER.error("Failed to open GUI", e);
             ctx.sendFailure(Component.literal("Failed to open the snapshot GUI"));
             return 0;
+        }
+    }
+
+    private static int changePreferredZone(CommandSourceStack ctx, String zone) throws CommandSyntaxException {
+        try {
+            ZoneId zoneId = ZoneId.of(zone);
+            InvRestore.updatePlayerPreferences(ctx.getPlayer(), (old) -> {
+                return old.withTimezone(zoneId);
+            });
+            ctx.sendSuccess(() -> Component.literal("Updated your timezone preference to " + zoneId), false);
+            return 1;
+        } catch (DateTimeException e) {
+            throw ERROR_INVALID_ZONE.create(zone);
         }
     }
 }

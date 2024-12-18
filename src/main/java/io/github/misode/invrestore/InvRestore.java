@@ -2,6 +2,7 @@ package io.github.misode.invrestore;
 
 import io.github.misode.invrestore.commands.InvRestoreCommand;
 import io.github.misode.invrestore.data.InvRestoreDatabase;
+import io.github.misode.invrestore.data.PlayerPreferences;
 import io.github.misode.invrestore.data.Snapshot;
 import net.fabricmc.api.ModInitializer;
 import net.fabricmc.fabric.api.command.v2.CommandRegistrationCallback;
@@ -9,10 +10,12 @@ import net.fabricmc.fabric.api.entity.event.v1.ServerEntityWorldChangeEvents;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayConnectionEvents;
 import net.minecraft.resources.ResourceLocation;
+import net.minecraft.server.level.ServerPlayer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.List;
+import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Stream;
 
@@ -58,6 +61,21 @@ public class InvRestore implements ModInitializer {
 
     public static ResourceLocation id(String path) {
         return ResourceLocation.fromNamespaceAndPath(MOD_ID, path);
+    }
+
+    public static PlayerPreferences getPlayerPreferences(ServerPlayer player) {
+        if (database == null) {
+            return PlayerPreferences.DEFAULT;
+        }
+        return database.preferences().getOrDefault(player.getUUID(), PlayerPreferences.DEFAULT);
+    }
+
+    public static void updatePlayerPreferences(ServerPlayer player, Function<PlayerPreferences, PlayerPreferences> update) {
+        if (database == null) {
+            throw new IllegalStateException("The database isn't loaded");
+        }
+        PlayerPreferences oldPreferences = getPlayerPreferences(player);
+        database.preferences().put(player.getUUID(), update.apply(oldPreferences));
     }
 
     private static Stream<Snapshot> getSnapshots() {
