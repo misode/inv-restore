@@ -94,7 +94,7 @@ public class InvRestoreCommand {
                 .append(" ---").withStyle(Styles.HEADER_DEFAULT)
         );
 
-        snapshots.forEach(snapshot -> {
+        snapshots.stream().limit(5).forEach(snapshot -> {
             ZoneId zone = InvRestore.getPlayerPreferences(ctx.getPlayer()).timezone().orElse(ZoneId.of("UTC"));
             DateTimeFormatter timeFormat = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss (z)").withZone(zone).withLocale(Locale.ROOT);
             String changeTimezoneCommand = "/invrestore timezone ";
@@ -142,6 +142,10 @@ public class InvRestoreCommand {
                     .append(" ").append(position)
             );
         });
+        if (snapshots.size() > 5) {
+            ctx.sendSystemMessage((Component.literal("and " + (snapshots.size() - 5) + " more...")
+                    .withStyle(Styles.LIST_DEFAULT)));
+        }
         return snapshots.size();
     }
 
