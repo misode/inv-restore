@@ -1,25 +1,27 @@
-package io.github.misode.invrestore.commands;
+package io.github.misode.invrestore.gui;
 
 import eu.pb4.sgui.api.ClickType;
 import eu.pb4.sgui.api.gui.SimpleGui;
 import eu.pb4.sgui.api.gui.SlotGuiInterface;
 import io.github.misode.invrestore.Styles;
-import io.github.misode.invrestore.data.ItemContents;
 import io.github.misode.invrestore.data.Snapshot;
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.Container;
 import net.minecraft.world.inventory.MenuType;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 
+import java.util.List;
+
 public class SnapshotGui extends SimpleGui {
-    private final Snapshot snapshot;
+    private final Container container;
 
     public SnapshotGui(ServerPlayer player, Snapshot snapshot) {
-        super(MenuType.GENERIC_9x5, player, true);
-        this.snapshot = snapshot;
-        this.setLockPlayerInventory(true);
+        super(MenuType.GENERIC_9x5, player, false);
+        List<ItemStack> items = snapshot.contents().allItems().toList();
+        this.container = new TakeOnlyContainer(items);
         this.setTitle(Component.empty()
                 .append(snapshot.event().formatEmoji(true))
                 .append(" ")
@@ -30,21 +32,24 @@ public class SnapshotGui extends SimpleGui {
         initDefaultView();
     }
 
+    private void mapSlot(int guiSlot, int containerSlot) {
+        this.setSlotRedirect(guiSlot, new SnapshotSlot(this.container, containerSlot, 0, 0));
+    }
+
     private void initDefaultView() {
-        ItemContents contents = this.snapshot.contents();
         ItemStack switcher = Items.ENDER_CHEST.getDefaultInstance();
         switcher.set(DataComponents.ITEM_NAME, Component.literal("View Ender Chest").withStyle(Styles.LIST_HIGHLIGHT));
         for (int i = 0; i < this.size; i++) {
             if (i < 27) {
-                this.setSlot(i, contents.inventoryGet(i + 9));
+                this.mapSlot(i, i+9);
             } else if (i < 36) {
-                this.setSlot(i, contents.inventoryGet(i-27));
+                this.mapSlot(i, i-27);
             } else if (i == 36) {
                 this.setSlot(i, switcher, this::handleEnderChestClick);
             } else if (i == 40) {
-                this.setSlot(i, contents.offhandGet(0));
+                this.mapSlot(i, i);
             } else if (i >= 41) {
-                this.setSlot(i, contents.armorGet(i-41));
+                this.mapSlot(i, i-5);
             } else {
                 this.setSlot(i, ItemStack.EMPTY);
             }
@@ -52,12 +57,11 @@ public class SnapshotGui extends SimpleGui {
     }
 
     private void initEnderChestView() {
-        ItemContents contents = this.snapshot.contents();
         ItemStack switcher = Items.CHEST.getDefaultInstance();
         switcher.set(DataComponents.ITEM_NAME, Component.literal("View Inventory").withStyle(Styles.LIST_HIGHLIGHT));
         for (int i = 0; i < this.size; i++) {
             if (i < 27) {
-                this.setSlot(i, contents.enderChestGet(i));
+                this.mapSlot(i, i+41);
             } else if (i == 36) {
                 this.setSlot(i, switcher, this::handleChestClick);
             } else {
@@ -67,13 +71,13 @@ public class SnapshotGui extends SimpleGui {
     }
 
     private void handleEnderChestClick(int index, ClickType type, Object action, SlotGuiInterface gui) {
-        if (type.isLeft) {
+        if (type.isLeft && !type.shift) {
             this.initEnderChestView();
         }
     }
 
     private void handleChestClick(int index, ClickType type, Object action, SlotGuiInterface gui) {
-        if (type.isLeft) {
+        if (type.isLeft && !type.shift) {
             this.initDefaultView();
         }
     }

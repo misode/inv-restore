@@ -8,6 +8,7 @@ import com.mojang.brigadier.tree.LiteralCommandNode;
 import io.github.misode.invrestore.InvRestore;
 import io.github.misode.invrestore.Styles;
 import io.github.misode.invrestore.data.Snapshot;
+import io.github.misode.invrestore.gui.SnapshotGui;
 import me.lucko.fabric.api.permissions.v0.Permissions;
 import net.minecraft.commands.CommandBuildContext;
 import net.minecraft.commands.CommandSourceStack;
@@ -104,7 +105,10 @@ public class InvRestoreCommand {
                     .withClickEvent(new ClickEvent(ClickEvent.Action.SUGGEST_COMMAND, changeTimezoneCommand))
             );
 
-            Component player = Component.literal(snapshot.playerName()).withStyle(Styles.LIST_HIGHLIGHT);
+            String tellPlayerCommand = "/tell " + snapshot.playerName() + " ";
+            Component player = Component.literal(snapshot.playerName()).withStyle(Styles.LIST_HIGHLIGHT
+                    .withClickEvent(new ClickEvent(ClickEvent.Action.SUGGEST_COMMAND, tellPlayerCommand))
+            );
 
             Component verb = snapshot.event().formatVerb().withStyle(Styles.LIST_DEFAULT);
 
@@ -113,7 +117,7 @@ public class InvRestoreCommand {
             hoverItem.set(DataComponents.LORE, new ItemLore(List.of(Component.literal("(click to view)")
                     .withStyle(Styles.LIST_DEFAULT.withItalic(false))
             )));
-            hoverItem.set(DataComponents.BUNDLE_CONTENTS, new BundleContents(snapshot.contents().allItems().toList()));
+            hoverItem.set(DataComponents.BUNDLE_CONTENTS, new BundleContents(snapshot.contents().allItems().filter(item -> !item.isEmpty()).toList()));
             String viewSnapshotCommand = "/invrestore view "+ snapshot.id();
             Component items = Component.literal("(" + snapshot.contents().stackCount() + " stacks)").withStyle(Styles.LIST_HIGHLIGHT
                     .withHoverEvent(new HoverEvent(HoverEvent.Action.SHOW_ITEM, new HoverEvent.ItemStackInfo(hoverItem)))

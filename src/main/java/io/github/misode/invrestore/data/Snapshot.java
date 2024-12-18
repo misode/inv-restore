@@ -30,7 +30,7 @@ import java.time.Instant;
 import java.util.Locale;
 import java.util.UUID;
 
-public record Snapshot(String id, Event event, UUID playerUuid, String playerName, Instant time, ResourceKey<Level> dimension, Vec3 position, ItemContents contents) implements Comparable<Snapshot> {
+public record Snapshot(String id, Event event, UUID playerUuid, String playerName, Instant time, ResourceKey<Level> dimension, Vec3 position, SnapshotItems contents) implements Comparable<Snapshot> {
     public static final Codec<Snapshot> CODEC = RecordCodecBuilder.create(b -> b.group(
             Codec.STRING.fieldOf("id").forGetter(Snapshot::id),
             Event.CODEC.fieldOf("event").forGetter(Snapshot::event),
@@ -39,14 +39,14 @@ public record Snapshot(String id, Event event, UUID playerUuid, String playerNam
             ExtraCodecs.INSTANT_ISO8601.fieldOf("time").forGetter(Snapshot::time),
             Level.RESOURCE_KEY_CODEC.fieldOf("dimension").forGetter(Snapshot::dimension),
             Vec3.CODEC.fieldOf("position").forGetter(Snapshot::position),
-            ItemContents.CODEC.fieldOf("contents").forGetter(Snapshot::contents)
+            SnapshotItems.CODEC.fieldOf("contents").forGetter(Snapshot::contents)
     ).apply(b, Snapshot::new));
 
     public static Snapshot create(ServerPlayer player, Event event) {
         String id = RandomBase62.generate(12);
         UUID playerUuid = player.getUUID();
         String playerName = player.getGameProfile().getName();
-        ItemContents contents = ItemContents.fromPlayer(player);
+        SnapshotItems contents = SnapshotItems.fromPlayer(player);
         return new Snapshot(id, event, playerUuid, playerName, Instant.now(), player.level().dimension(), player.position(), contents);
     }
 
