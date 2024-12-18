@@ -19,6 +19,7 @@ import net.minecraft.network.chat.ClickEvent;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.HoverEvent;
 import net.minecraft.resources.ResourceLocation;
+import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.item.component.BundleContents;
@@ -27,9 +28,7 @@ import net.minecraft.world.item.component.ItemLore;
 import java.time.DateTimeException;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
-import java.util.List;
-import java.util.Locale;
-import java.util.Optional;
+import java.util.*;
 
 import static net.minecraft.commands.Commands.argument;
 import static net.minecraft.commands.Commands.literal;
@@ -46,6 +45,7 @@ public class InvRestoreCommand {
         LiteralCommandNode<CommandSourceStack> ir = dispatcher.register(literal("invrestore")
                 .requires(ctx -> Permissions.check(ctx, "invrestore", 2))
                 .then(literal("list")
+                        .requires(ctx -> Permissions.check(ctx, "invrestore.list", 2))
                         .then(argument("player", StringArgumentType.word())
                                 .suggests((ctx, builder) -> SharedSuggestionProvider.suggest(InvRestore.getPlayerNames(), builder))
                                 .executes((ctx) -> listPlayerSnapshot(ctx.getSource(), StringArgumentType.getString(ctx, "player")))
@@ -54,6 +54,7 @@ public class InvRestoreCommand {
                                         .executes((ctx) -> listPlayerSnapshot(ctx.getSource(), StringArgumentType.getString(ctx, "player"), StringArgumentType.getString(ctx, "type")))
                                 )))
                 .then(literal("view")
+                        .requires(ctx -> Permissions.check(ctx, "invrestore.view", 2))
                         .then(argument("id", StringArgumentType.word())
                                 .suggests((ctx, builder) -> SharedSuggestionProvider.suggest(InvRestore.getAllIds(), builder))
                                 .executes((ctx) -> viewSnapshot(ctx.getSource(), StringArgumentType.getString(ctx, "id")))))
@@ -84,14 +85,15 @@ public class InvRestoreCommand {
 
     private static int sendSnapshots(CommandSourceStack ctx, String playerName, List<Snapshot> snapshots) {
         if (snapshots.isEmpty()) {
-            ctx.sendSystemMessage(Component.literal("No matching snapshots found").withStyle(Styles.HEADER_DEFAULT));
+            ctx.sendFailure(Component.literal("No matching snapshots found"));
             return 0;
         }
 
-        ctx.sendSystemMessage(Component.empty()
+        ctx.sendSuccess(() -> Component.empty()
                 .append(Component.literal("--- Listing snapshots of ").withStyle(Styles.HEADER_DEFAULT))
                 .append(Component.literal(playerName).withStyle(Styles.HEADER_HIGHLIGHT))
-                .append(" ---").withStyle(Styles.HEADER_DEFAULT)
+                .append(" ---").withStyle(Styles.HEADER_DEFAULT),
+                false
         );
 
         snapshots.stream().limit(5).forEach(snapshot -> {
@@ -133,18 +135,20 @@ public class InvRestoreCommand {
                             .append(Component.literal("\n(click to teleport)").withStyle(Styles.LIST_DEFAULT))))
                     .withClickEvent(new ClickEvent(ClickEvent.Action.RUN_COMMAND, teleportCommand)));
 
-            ctx.sendSystemMessage(Component.empty()
+            ctx.sendSuccess(() -> Component.empty()
                     .append(snapshot.event().formatEmoji(false))
                     .append(" ").append(time)
                     .append(" ").append(player)
                     .append(" ").append(verb)
                     .append(" ").append(items)
-                    .append(" ").append(position)
+                    .append(" ").append(position),
+                    false
             );
         });
         if (snapshots.size() > 5) {
-            ctx.sendSystemMessage((Component.literal("and " + (snapshots.size() - 5) + " more...")
-                    .withStyle(Styles.LIST_DEFAULT)));
+            ctx.sendSuccess(() -> (Component.literal("and " + (snapshots.size() - 5) + " more...")
+                    .withStyle(Styles.LIST_DEFAULT)),
+                    false);
         }
         return snapshots.size();
     }
@@ -154,11 +158,17 @@ public class InvRestoreCommand {
                 .findSnapshots(s -> s.id().equals(id))
                 .stream().findAny();
         if (snapshot.isEmpty()) {
-            ctx.sendFailure(Component.literal("Cannot find snapshot ID " + id));
+            ctx.sendFailure(Component.literal("Cannot find the snapshot \"" + id + "\""));
+            return 0;
+        }
+        ServerPlayer player = ctx.getPlayer();
+        if (player == null) {
+            ctx.sendFailure(Component.literal("Only players can view a snapshot"));
             return 0;
         }
         try {
-            new SnapshotGui(ctx.getPlayer(), snapshot.get()).open();
+            SnapshotGui gui = new SnapshotGui(player, snapshot.get());
+            gui.open();
             return 1;
         } catch (Exception e) {
             InvRestore.LOGGER.error("Failed to open GUI", e);
