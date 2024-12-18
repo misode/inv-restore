@@ -5,28 +5,26 @@ import com.mojang.serialization.Lifecycle;
 import com.mojang.serialization.MapCodec;
 import com.mojang.serialization.codecs.RecordCodecBuilder;
 import io.github.misode.invrestore.InvRestore;
+import io.github.misode.invrestore.RandomBase62;
 import io.github.misode.invrestore.Styles;
-import net.minecraft.core.BlockPos;
 import net.minecraft.core.MappedRegistry;
 import net.minecraft.core.Registry;
 import net.minecraft.core.UUIDUtil;
-import net.minecraft.core.component.DataComponents;
-import net.minecraft.network.chat.ClickEvent;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.HoverEvent;
 import net.minecraft.network.chat.MutableComponent;
+import net.minecraft.network.chat.Style;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.util.ExtraCodecs;
 import net.minecraft.world.damagesource.DamageSource;
-import net.minecraft.world.item.ItemStack;
-import net.minecraft.world.item.Items;
-import net.minecraft.world.item.component.BundleContents;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.phys.Vec3;
 import org.jetbrains.annotations.NotNull;
 
+import java.text.DecimalFormat;
+import java.text.DecimalFormatSymbols;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.ZoneId;
@@ -47,7 +45,7 @@ public record Snapshot(String id, Event event, UUID playerUuid, String playerNam
     ).apply(b, Snapshot::new));
 
     public static Snapshot create(ServerPlayer player, Event event) {
-        String id = UUID.randomUUID().toString().replace("-", "");
+        String id = RandomBase62.generate(12);
         UUID playerUuid = player.getUUID();
         String playerName = player.getGameProfile().getName();
         ItemContents contents = ItemContents.fromPlayer(player);
@@ -75,30 +73,7 @@ public record Snapshot(String id, Event event, UUID playerUuid, String playerNam
         return -this.time.compareTo(o.time);
     }
 
-    public MutableComponent format() {
-        BlockPos pos = BlockPos.containing(this.position);
-        String teleportCommand = "/execute in " + this.dimension.location() + " run teleport @s " + this.position.x + " " + this.position.y + " " + this.position.z;
-        MutableComponent position = Component.literal(pos.getX() + " " + pos.getY() + " " + pos.getZ())
-                .withStyle(Styles.LIST_DEFAULT
-                        .withHoverEvent(new HoverEvent(HoverEvent.Action.SHOW_TEXT, Component.literal("(click to teleport)")))
-                        .withClickEvent(new ClickEvent(ClickEvent.Action.RUN_COMMAND, teleportCommand)));
-        return Component.empty()
-                .append(this.event.formatEmoji())
-                .append(" ")
-                .append(Component.literal(this.formatTimeAgo()).withStyle(Styles.LIST_DEFAULT
-                        .withHoverEvent(new HoverEvent(HoverEvent.Action.SHOW_TEXT, Component.literal(this.formatFullTime())))
-                ))
-                .append(" ")
-                .append(Component.literal(this.playerName).withStyle(Styles.LIST_HIGHLIGHT))
-                .append(" ")
-                .append(this.event.formatVerb().withStyle())
-                .append(" ")
-                .append(this.formatItemStacks())
-                .append(" ")
-                .append(position);
-    }
-
-    private String formatTimeAgo() {
+    public String formatTimeAgo() {
         Duration duration = Duration.between(this.time, Instant.now());
         long seconds = duration.getSeconds();
         if (seconds < 60) {
@@ -112,23 +87,19 @@ public record Snapshot(String id, Event event, UUID playerUuid, String playerNam
         }
     }
 
-    private String formatFullTime() {
+    public String formatFullTime() {
         DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss").withLocale(Locale.ROOT);
         return formatter.format(this.time.atZone(ZoneId.of("UTC"))) + " (UTC)";
     }
 
-    private Component formatItemStacks() {
-        ItemStack previewItem = Items.BUNDLE.getDefaultInstance();
-        previewItem.set(DataComponents.ITEM_NAME, Component.literal("Inventory Preview").withStyle(Styles.LIST_HIGHLIGHT));
-        previewItem.set(DataComponents.BUNDLE_CONTENTS, new BundleContents(this.contents.allItems().toList()));
-        return Component.literal("(" + this.contents.stackCount() + " stacks)")
-                .withStyle(Styles.LIST_HIGHLIGHT
-                        .withHoverEvent(new HoverEvent(HoverEvent.Action.SHOW_ITEM, new HoverEvent.ItemStackInfo(previewItem))));
+    public String formatPos() {
+        DecimalFormat f = new DecimalFormat("#.##", DecimalFormatSymbols.getInstance(Locale.ROOT));
+        return f.format(this.position.x) + " " + f.format(this.position.y) + " " + f.format(this.position.z);
     }
 
     public interface Event {
         EventType<?> getType();
-        MutableComponent formatEmoji();
+        MutableComponent formatEmoji(boolean dark);
         MutableComponent formatVerb();
 
         Codec<Event> CODEC = EventType.REGISTRY.byNameCodec()
@@ -161,14 +132,16 @@ public record Snapshot(String id, Event event, UUID playerUuid, String playerNam
         }
 
         @Override
-        public MutableComponent formatEmoji() {
-            return Component.literal("☠").withStyle(Styles.DEATH_ICON);
+        public MutableComponent formatEmoji(boolean dark) {
+            return Component.literal("☠")
+                    .withStyle(dark ? Styles.GUI_DEATH : Styles.CHAT_DEATH);
         }
 
         @Override
         public MutableComponent formatVerb() {
-            return Component.literal("died").withStyle(Styles.VERB
-                    .withHoverEvent(new HoverEvent(HoverEvent.Action.SHOW_TEXT, Component.literal(this.deathMessage)))
+            return Component.literal("died").withStyle(Style.EMPTY
+                    .withHoverEvent(new HoverEvent(HoverEvent.Action.SHOW_TEXT, Component.literal(this.deathMessage)
+                            .withStyle(Styles.LIST_HIGHLIGHT)))
             );
         }
     }
@@ -183,13 +156,14 @@ public record Snapshot(String id, Event event, UUID playerUuid, String playerNam
         }
 
         @Override
-        public MutableComponent formatEmoji() {
-            return Component.literal("▶").withStyle(Styles.JOIN_ICON);
+        public MutableComponent formatEmoji(boolean dark) {
+            return Component.literal("▶")
+                    .withStyle(dark ? Styles.GUI_JOIN : Styles.CHAT_JOIN);
         }
 
         @Override
         public MutableComponent formatVerb() {
-            return Component.literal("joined").withStyle(Styles.VERB);
+            return Component.literal("joined");
         }
     }
 
@@ -203,13 +177,14 @@ public record Snapshot(String id, Event event, UUID playerUuid, String playerNam
         }
 
         @Override
-        public MutableComponent formatEmoji() {
-            return Component.literal("◀").withStyle(Styles.DISCONNECT_ICON);
+        public MutableComponent formatEmoji(boolean dark) {
+            return Component.literal("◀")
+                    .withStyle(dark ? Styles.GUI_DISCONNECT : Styles.CHAT_DISCONNECT);
         }
 
         @Override
         public MutableComponent formatVerb() {
-            return Component.literal("left").withStyle(Styles.VERB);
+            return Component.literal("left");
         }
     }
 
@@ -225,17 +200,18 @@ public record Snapshot(String id, Event event, UUID playerUuid, String playerNam
         }
 
         @Override
-        public MutableComponent formatEmoji() {
-            return Component.literal("🔀").withStyle(Styles.LEVEL_CHANGE_ICON);
+        public MutableComponent formatEmoji(boolean dark) {
+            return Component.literal("🔀")
+                    .withStyle(dark ? Styles.GUI_LEVEL_CHANGE : Styles.CHAT_LEVEL_CHANGE);
         }
 
         @Override
         public MutableComponent formatVerb() {
-            return Component.literal("traveled").withStyle(Styles.VERB
+            return Component.literal("traveled").withStyle(Style.EMPTY
                     .withHoverEvent(new HoverEvent(HoverEvent.Action.SHOW_TEXT, Component.empty()
-                            .append(Component.literal(formatLevel(origin)))
-                            .append(" ➡ ")
-                            .append(Component.literal(formatLevel(destination)))
+                            .append(Component.literal(formatLevel(origin)).withStyle(Styles.LIST_HIGHLIGHT))
+                            .append(Component.literal(" ➡ ").withStyle(Styles.LIST_DEFAULT))
+                            .append(Component.literal(formatLevel(destination)).withStyle(Styles.LIST_HIGHLIGHT))
                     ))
             );
         }
@@ -258,13 +234,14 @@ public record Snapshot(String id, Event event, UUID playerUuid, String playerNam
         }
 
         @Override
-        public MutableComponent formatEmoji() {
-            return Component.literal("⌚").withStyle(Styles.AUTO_SAVE_ICON);
+        public MutableComponent formatEmoji(boolean dark) {
+            return Component.literal("⌚")
+                    .withStyle(dark ? Styles.GUI_AUTO_SAVE : Styles.CHAT_AUTO_SAVE);
         }
 
         @Override
         public MutableComponent formatVerb() {
-            return Component.literal("auto-saved").withStyle(Styles.VERB);
+            return Component.literal("auto-saved");
         }
     }
 }

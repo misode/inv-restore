@@ -8,6 +8,7 @@ import net.minecraft.world.inventory.PlayerEnderChestContainer;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.component.ItemContainerContents;
 
+import java.util.List;
 import java.util.stream.Stream;
 
 public record ItemContents(ItemContainerContents inventory, ItemContainerContents armor, ItemContainerContents offhand, ItemContainerContents enderChest) {
@@ -39,5 +40,29 @@ public record ItemContents(ItemContainerContents inventory, ItemContainerContent
         return Stream.of(this.inventory, this.armor, this.offhand, this.enderChest)
                 .flatMap(ItemContainerContents::stream)
                 .filter(item -> !item.isEmpty());
+    }
+
+    public ItemStack inventoryGet(int slot) {
+        return get(this.inventory, slot);
+    }
+
+    public ItemStack armorGet(int slot) {
+        return get(this.armor, slot);
+    }
+
+    public ItemStack offhandGet(int slot) {
+        return get(this.offhand, slot);
+    }
+
+    public ItemStack enderChestGet(int slot) {
+        return get(this.enderChest, slot);
+    }
+
+    private static ItemStack get(ItemContainerContents contents, int slot) {
+        List<ItemStack> items = contents.stream().toList();
+        if (0 <= slot && slot < items.size()) {
+            return items.get(slot);
+        }
+        return ItemStack.EMPTY;
     }
 }

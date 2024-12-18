@@ -14,6 +14,7 @@ import org.slf4j.LoggerFactory;
 
 import java.util.List;
 import java.util.function.Predicate;
+import java.util.stream.Stream;
 
 public class InvRestore implements ModInitializer {
     public static final String MOD_ID = "invrestore";
@@ -35,11 +36,10 @@ public class InvRestore implements ModInitializer {
             }
         });
         ServerLifecycleEvents.BEFORE_SAVE.register((server, flush, force) -> {
-            if (database == null) {
-                LOGGER.error("Couldn't save database because it isn't loaded.");
-                return;
-            }
             try {
+                if (database == null) {
+                    throw new IllegalStateException("The database isn't loaded.");
+                }
                 database.save(server);
             } catch (Exception e) {
                 LOGGER.error("Failed to save database", e);
@@ -60,6 +60,13 @@ public class InvRestore implements ModInitializer {
         return ResourceLocation.fromNamespaceAndPath(MOD_ID, path);
     }
 
+    private static Stream<Snapshot> getSnapshots() {
+        if (database == null) {
+            return Stream.of();
+        }
+        return database.snapshots().stream();
+    }
+
     public static void addSnapshot(Snapshot snapshot) {
         try {
             if (database == null) {
@@ -72,22 +79,23 @@ public class InvRestore implements ModInitializer {
     }
 
     public static List<String> getPlayerNames() {
-        if (database == null) {
-            return List.of();
-        }
-        return database.snapshots().stream()
+        return getSnapshots()
+                .sorted()
                 .map(Snapshot::playerName)
                 .distinct()
                 .toList();
     }
 
     public static List<Snapshot> findSnapshots(Predicate<Snapshot> predicate) {
-        if (database == null) {
-            return List.of();
-        }
-        return database.snapshots().stream()
+        return getSnapshots()
                 .filter(predicate)
                 .sorted()
+                .toList();
+    }
+
+    public static List<String> getAllIds() {
+        return getSnapshots()
+                .map(Snapshot::id)
                 .toList();
     }
 }
