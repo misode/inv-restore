@@ -12,7 +12,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Stream;
 
-public record SnapshotItems(NonNullList<ItemStack> inventory, NonNullList<ItemStack> armor, NonNullList<ItemStack> offhand, NonNullList<ItemStack> enderChest) {
+public record SnapshotItems(List<ItemStack> inventory, List<ItemStack> armor, List<ItemStack> offhand, List<ItemStack> enderChest) {
     public static final Codec<SnapshotItems> CODEC = RecordCodecBuilder.create(b -> b.group(
             itemListCodec(36).fieldOf("inventory").forGetter(SnapshotItems::inventory),
             itemListCodec(4).fieldOf("armor").forGetter(SnapshotItems::armor),
@@ -23,7 +23,12 @@ public record SnapshotItems(NonNullList<ItemStack> inventory, NonNullList<ItemSt
     public static SnapshotItems fromPlayer(ServerPlayer player) {
         Inventory inv = player.getInventory();
         PlayerEnderChestContainer end = player.getEnderChestInventory();
-        return new SnapshotItems(inv.items, inv.armor, inv.offhand, end.items);
+        return new SnapshotItems(
+                inv.items.stream().map(ItemStack::copy).toList(),
+                inv.armor.stream().map(ItemStack::copy).toList(),
+                inv.offhand.stream().map(ItemStack::copy).toList(),
+                end.items.stream().map(ItemStack::copy).toList()
+        );
     }
 
     public int stackCount() {
@@ -39,9 +44,9 @@ public record SnapshotItems(NonNullList<ItemStack> inventory, NonNullList<ItemSt
                 .map(ItemStack::copy);
     }
 
-    private static Codec<NonNullList<ItemStack>> itemListCodec(int size) {
+    private static Codec<List<ItemStack>> itemListCodec(int size) {
         return Slot.CODEC.listOf().orElse(List.of()).xmap((slots) -> {
-            NonNullList<ItemStack> items = NonNullList.withSize(size, ItemStack.EMPTY);
+            List<ItemStack> items = NonNullList.withSize(size, ItemStack.EMPTY);
             slots.forEach((slot) -> {
                 items.set(slot.index, slot.item);
             });
