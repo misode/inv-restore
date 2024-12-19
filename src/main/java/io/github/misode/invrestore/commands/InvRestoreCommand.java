@@ -100,12 +100,11 @@ public class InvRestoreCommand {
                 false
         );
 
-        ZoneId defaultZone = InvRestore.config.queryFormat().defaultZone();
-        int maxResults = InvRestore.config.queryFormat().maxResults();
+        InvRestoreConfig.QueryResults config = InvRestore.config.queryResults();
 
-        snapshots.stream().limit(maxResults).forEach(snapshot -> {
-            ZoneId zone = InvRestore.getPlayerPreferences(ctx.getPlayer()).timezone().orElse(defaultZone);
-            DateTimeFormatter timeFormat = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss (z)").withZone(zone).withLocale(Locale.ROOT);
+        snapshots.stream().limit(config.maxResults()).forEach(snapshot -> {
+            ZoneId zone = InvRestore.getPlayerPreferences(ctx.getPlayer()).timezone().orElse(config.defaultZone());
+            DateTimeFormatter timeFormat = DateTimeFormatter.ofPattern(config.fullTimeFormat()).withZone(zone).withLocale(Locale.ROOT);
             String changeTimezoneCommand = "/invrestore timezone ";
             Component time = Component.literal(snapshot.formatTimeAgo()).withStyle(Styles.LIST_DEFAULT
                     .withHoverEvent(new HoverEvent(HoverEvent.Action.SHOW_TEXT, Component.empty()
