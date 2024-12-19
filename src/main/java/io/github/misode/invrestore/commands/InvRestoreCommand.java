@@ -7,6 +7,7 @@ import com.mojang.brigadier.exceptions.DynamicCommandExceptionType;
 import com.mojang.brigadier.tree.LiteralCommandNode;
 import io.github.misode.invrestore.InvRestore;
 import io.github.misode.invrestore.Styles;
+import io.github.misode.invrestore.config.InvRestoreConfig;
 import io.github.misode.invrestore.data.Snapshot;
 import io.github.misode.invrestore.gui.SnapshotGui;
 import me.lucko.fabric.api.permissions.v0.Permissions;
@@ -61,7 +62,10 @@ public class InvRestoreCommand {
                 .then(literal("timezone")
                         .then(argument("zone", StringArgumentType.greedyString())
                                 .suggests((ctx, builder) -> SharedSuggestionProvider.suggest(ZoneId.getAvailableZoneIds(), builder))
-                                .executes((ctx) -> changePreferredZone(ctx.getSource(), StringArgumentType.getString(ctx, "zone"))))));
+                                .executes((ctx) -> changePreferredZone(ctx.getSource(), StringArgumentType.getString(ctx, "zone")))))
+                .then(literal("reload")
+                        .requires(ctx -> Permissions.check(ctx, "invrestore.reload", 3))
+                        .executes((ctx) -> reloadConfig(ctx.getSource()))));
         dispatcher.register(literal("ir")
                 .requires(ctx -> Permissions.check(ctx, "invrestore", 2))
                 .redirect(ir));
@@ -188,5 +192,16 @@ public class InvRestoreCommand {
         } catch (DateTimeException e) {
             throw ERROR_INVALID_ZONE.create(zone);
         }
+    }
+
+    private static int reloadConfig(CommandSourceStack ctx) {
+        Optional<InvRestoreConfig> config = InvRestoreConfig.reload();
+        if (config.isEmpty()) {
+            ctx.sendFailure(Component.literal("Failed to reload the config! Check server console for more info."));
+            return 0;
+        }
+        InvRestore.config = config.get();
+        ctx.sendSuccess(() -> Component.literal("Reloaded config!"), false);
+        return 1;
     }
 }

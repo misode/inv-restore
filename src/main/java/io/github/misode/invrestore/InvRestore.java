@@ -1,6 +1,7 @@
 package io.github.misode.invrestore;
 
 import io.github.misode.invrestore.commands.InvRestoreCommand;
+import io.github.misode.invrestore.config.InvRestoreConfig;
 import io.github.misode.invrestore.data.InvRestoreDatabase;
 import io.github.misode.invrestore.data.PlayerPreferences;
 import io.github.misode.invrestore.data.Snapshot;
@@ -24,6 +25,7 @@ public class InvRestore implements ModInitializer {
     public static final Logger LOGGER = LoggerFactory.getLogger(InvRestore.class);
 
     private static InvRestoreDatabase database;
+    public static InvRestoreConfig config = InvRestoreConfig.DEFAULT;
 
     @Override
     public void onInitialize() {
@@ -33,9 +35,10 @@ public class InvRestore implements ModInitializer {
 
         ServerLifecycleEvents.SERVER_STARTING.register((server) -> {
             try {
+                InvRestore.config = InvRestoreConfig.load();
                 InvRestore.database = InvRestoreDatabase.load(server);
             } catch (Exception e) {
-                LOGGER.error("Failed to load database", e);
+                InvRestore.LOGGER.error("Something went wrong during startup:", e);
             }
         });
         ServerLifecycleEvents.BEFORE_SAVE.register((server, flush, force) -> {
