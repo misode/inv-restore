@@ -5,13 +5,17 @@ import com.mojang.serialization.codecs.RecordCodecBuilder;
 import io.github.misode.invrestore.InvRestore;
 import net.minecraft.Util;
 import net.minecraft.core.UUIDUtil;
-import net.minecraft.nbt.*;
+import net.minecraft.nbt.CompoundTag;
+import net.minecraft.nbt.NbtAccounter;
+import net.minecraft.nbt.NbtIo;
+import net.minecraft.nbt.NbtOps;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.world.level.storage.LevelResource;
 
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.*;
+import java.util.stream.Collectors;
 
 public record InvRestoreDatabase(int format, List<Snapshot> snapshots, Map<UUID, PlayerPreferences> preferences) {
     public static final String FILE_NAME = "invrestore.dat";
@@ -52,6 +56,7 @@ public record InvRestoreDatabase(int format, List<Snapshot> snapshots, Map<UUID,
         Path path = server.getWorldPath(LevelResource.ROOT)
                 .resolve("data")
                 .resolve(FILE_NAME);
+        this.enforceLimits();
         InvRestoreDatabase.CODEC.encodeStart(NbtOps.INSTANCE, this)
                 .ifSuccess(tag -> {
                     try {
@@ -61,5 +66,23 @@ public record InvRestoreDatabase(int format, List<Snapshot> snapshots, Map<UUID,
                     }
                 })
                 .resultOrPartial(Util.prefix("Failed to save " + FILE_NAME + ": ", InvRestore.LOGGER::error));
+    }
+
+    public void enforceLimits() {
+        int maxPerPlayer = InvRestore.config.storeLimits().maxPerPlayer();
+        int maxTotal = InvRestore.config.storeLimits().maxTotal();
+        List<Snapshot> newSnapshots = snapshots.stream()
+                .collect(Collectors.groupingBy(Snapshot::playerUuid))
+                .values().stream()
+                .flatMap(playerSnapshots -> playerSnapshots.stream()
+                        .sorted(Comparator.comparing(Snapshot::time))
+                        .skip(Math.max(0, playerSnapshots.size() - maxPerPlayer)))
+                .sorted(Comparator.comparing(Snapshot::time))
+                .toList();
+        if (newSnapshots.size() > maxTotal) {
+            newSnapshots = newSnapshots.subList(newSnapshots.size() - maxTotal, newSnapshots.size());
+        }
+        this.snapshots.clear();
+        this.snapshots.addAll(newSnapshots);
     }
 }

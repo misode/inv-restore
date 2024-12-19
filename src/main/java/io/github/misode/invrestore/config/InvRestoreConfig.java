@@ -19,40 +19,30 @@ import java.io.FileReader;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.ZoneId;
 import java.util.Optional;
 
-public record InvRestoreConfig(int format, StoreLimits storeLimits) {
+public record InvRestoreConfig(QueryFormat queryFormat, StoreLimits storeLimits) {
     public static final Gson GSON = new GsonBuilder().setPrettyPrinting().disableHtmlEscaping().create();
     public static final String FILE_NAME = "invrestore/config.json";
     public static final Path FILE_PATH = FabricLoader.getInstance().getConfigDir().resolve(FILE_NAME);
-    public static final InvRestoreConfig DEFAULT = new InvRestoreConfig(1, StoreLimits.DEFAULT);
+    public static final InvRestoreConfig DEFAULT = new InvRestoreConfig(QueryFormat.DEFAULT, StoreLimits.DEFAULT);
 
     public static final Codec<InvRestoreConfig> CODEC = RecordCodecBuilder.create(b -> b.group(
-            Codec.INT.fieldOf("format_version").forGetter(InvRestoreConfig::format),
-            optionalConfig(StoreLimits.CODEC, "store_limits", DEFAULT.storeLimits).forGetter(InvRestoreConfig::storeLimits)
+            optionalField(QueryFormat.CODEC, "query_format", DEFAULT.queryFormat).forGetter(InvRestoreConfig::queryFormat),
+            optionalField(StoreLimits.CODEC, "store_limits", DEFAULT.storeLimits).forGetter(InvRestoreConfig::storeLimits)
     ).apply(b, InvRestoreConfig::new));
 
-    public static InvRestoreConfig load() {
+    public static Optional<InvRestoreConfig> load() {
         try (JsonReader reader = new JsonReader(new FileReader(FILE_PATH.toFile()))) {
             return InvRestoreConfig.CODEC.parse(JsonOps.INSTANCE, GSON.fromJson(reader, JsonElement.class))
-                    .resultOrPartial(Util.prefix("Failed to load " + FILE_NAME + ":", InvRestore.LOGGER::error))
-                    .orElse(DEFAULT);
+                    .resultOrPartial(Util.prefix("Failed to load " + FILE_NAME + ":", InvRestore.LOGGER::error));
         } catch (FileNotFoundException e) {
             InvRestore.LOGGER.info("Creating default config " + FILE_NAME);
             DEFAULT.save();
-            return DEFAULT;
+            return Optional.of(DEFAULT);
         } catch (IOException | JsonSyntaxException e) {
             InvRestore.LOGGER.error("Failed to read config " + FILE_NAME, e);
-            return DEFAULT;
-        }
-    }
-
-    public static Optional<InvRestoreConfig> reload() {
-        try (JsonReader reader = new JsonReader(new FileReader(FILE_PATH.toFile()))) {
-            return InvRestoreConfig.CODEC.parse(JsonOps.INSTANCE, GSON.fromJson(reader, JsonElement.class))
-                    .resultOrPartial(Util.prefix("Failed to reload " + FILE_NAME + ":", InvRestore.LOGGER::error));
-        } catch (IOException | JsonSyntaxException e) {
-            InvRestore.LOGGER.error("Failed to reload " + FILE_NAME, e);
             return Optional.empty();
         }
     }
@@ -70,14 +60,23 @@ public record InvRestoreConfig(int format, StoreLimits storeLimits) {
                 });
     }
 
-    public record StoreLimits(int maxPerPlayer) {
-        public static final StoreLimits DEFAULT = new StoreLimits(10);
+    public record QueryFormat(int maxResults, ZoneId defaultZone) {
+        public static final QueryFormat DEFAULT = new QueryFormat(5, ZoneId.of("UTC"));
+        public static final Codec<QueryFormat> CODEC = RecordCodecBuilder.create(b -> b.group(
+                optionalField(Codec.intRange(1, 10), "max_results", DEFAULT.maxResults).forGetter(QueryFormat::maxResults),
+                optionalField(Codec.STRING.xmap(ZoneId::of, ZoneId::toString), "default_timezone", DEFAULT.defaultZone).forGetter(QueryFormat::defaultZone)
+        ).apply(b, QueryFormat::new));
+    }
+
+    public record StoreLimits(int maxPerPlayer, int maxTotal) {
+        public static final StoreLimits DEFAULT = new StoreLimits(50, 10_000);
         public static final Codec<StoreLimits> CODEC = RecordCodecBuilder.create(b -> b.group(
-                optionalConfig(Codec.INT, "max_per_player", DEFAULT.maxPerPlayer).forGetter(StoreLimits::maxPerPlayer)
+                optionalField(Codec.intRange(1, Integer.MAX_VALUE), "max_per_player", DEFAULT.maxPerPlayer).forGetter(StoreLimits::maxPerPlayer),
+                optionalField(Codec.intRange(1, Integer.MAX_VALUE), "max_total", DEFAULT.maxTotal).forGetter(StoreLimits::maxTotal)
         ).apply(b, StoreLimits::new));
     }
 
-    public static <T> MapCodec<T> optionalConfig(Codec<T> codec, String name, T defaultValue) {
+    private static <T> MapCodec<T> optionalField(Codec<T> codec, String name, T defaultValue) {
         return new OptionalFieldCodec<>(name, codec, false)
                 .xmap(a -> a.orElse(defaultValue), Optional::of);
     }

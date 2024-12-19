@@ -35,7 +35,7 @@ public class InvRestore implements ModInitializer {
 
         ServerLifecycleEvents.SERVER_STARTING.register((server) -> {
             try {
-                InvRestore.config = InvRestoreConfig.load();
+                InvRestore.config = InvRestoreConfig.load().orElse(InvRestoreConfig.DEFAULT);
                 InvRestore.database = InvRestoreDatabase.load(server);
             } catch (Exception e) {
                 InvRestore.LOGGER.error("Something went wrong during startup:", e);

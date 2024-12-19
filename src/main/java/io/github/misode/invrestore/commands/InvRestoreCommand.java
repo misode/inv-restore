@@ -100,8 +100,11 @@ public class InvRestoreCommand {
                 false
         );
 
-        snapshots.stream().limit(5).forEach(snapshot -> {
-            ZoneId zone = InvRestore.getPlayerPreferences(ctx.getPlayer()).timezone().orElse(ZoneId.of("UTC"));
+        ZoneId defaultZone = InvRestore.config.queryFormat().defaultZone();
+        int maxResults = InvRestore.config.queryFormat().maxResults();
+
+        snapshots.stream().limit(maxResults).forEach(snapshot -> {
+            ZoneId zone = InvRestore.getPlayerPreferences(ctx.getPlayer()).timezone().orElse(defaultZone);
             DateTimeFormatter timeFormat = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss (z)").withZone(zone).withLocale(Locale.ROOT);
             String changeTimezoneCommand = "/invrestore timezone ";
             Component time = Component.literal(snapshot.formatTimeAgo()).withStyle(Styles.LIST_DEFAULT
@@ -195,7 +198,7 @@ public class InvRestoreCommand {
     }
 
     private static int reloadConfig(CommandSourceStack ctx) {
-        Optional<InvRestoreConfig> config = InvRestoreConfig.reload();
+        Optional<InvRestoreConfig> config = InvRestoreConfig.load();
         if (config.isEmpty()) {
             ctx.sendFailure(Component.literal("Failed to reload the config! Check server console for more info."));
             return 0;
