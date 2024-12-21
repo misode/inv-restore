@@ -5,10 +5,8 @@ import com.mojang.serialization.codecs.RecordCodecBuilder;
 import io.github.misode.invrestore.InvRestore;
 import net.minecraft.Util;
 import net.minecraft.core.UUIDUtil;
-import net.minecraft.nbt.CompoundTag;
-import net.minecraft.nbt.NbtAccounter;
-import net.minecraft.nbt.NbtIo;
-import net.minecraft.nbt.NbtOps;
+import net.minecraft.nbt.*;
+import net.minecraft.resources.RegistryOps;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.world.level.storage.LevelResource;
 
@@ -41,8 +39,9 @@ public record InvRestoreDatabase(int format, List<Snapshot> snapshots, Map<UUID,
                 .resolve("data")
                 .resolve(FILE_NAME);
         try {
+            RegistryOps<Tag> ops = server.registryAccess().createSerializationContext(NbtOps.INSTANCE);
             CompoundTag tag = NbtIo.readCompressed(path, NbtAccounter.unlimitedHeap());
-            return InvRestoreDatabase.CODEC.decode(NbtOps.INSTANCE, tag)
+            return InvRestoreDatabase.CODEC.decode(ops, tag)
                     .getOrThrow().getFirst();
         } catch (IOException e) {
             InvRestore.LOGGER.info("Creating new file " + FILE_NAME);
@@ -57,7 +56,8 @@ public record InvRestoreDatabase(int format, List<Snapshot> snapshots, Map<UUID,
                 .resolve("data")
                 .resolve(FILE_NAME);
         this.enforceLimits();
-        InvRestoreDatabase.CODEC.encodeStart(NbtOps.INSTANCE, this)
+        RegistryOps<Tag> ops = server.registryAccess().createSerializationContext(NbtOps.INSTANCE);
+        InvRestoreDatabase.CODEC.encodeStart(ops, this)
                 .ifSuccess(tag -> {
                     try {
                         NbtIo.writeCompressed((CompoundTag) tag, path);
