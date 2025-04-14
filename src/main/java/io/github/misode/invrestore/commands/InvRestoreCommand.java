@@ -107,15 +107,15 @@ public class InvRestoreCommand {
             DateTimeFormatter timeFormat = DateTimeFormatter.ofPattern(config.fullTimeFormat()).withZone(zone).withLocale(Locale.ROOT);
             String changeTimezoneCommand = "/invrestore timezone ";
             Component time = Component.literal(snapshot.formatTimeAgo()).withStyle(Styles.LIST_DEFAULT
-                    .withHoverEvent(new HoverEvent(HoverEvent.Action.SHOW_TEXT, Component.empty()
+                    .withHoverEvent(new HoverEvent.ShowText(Component.empty()
                             .append(Component.literal(timeFormat.format(snapshot.time())).withStyle(Styles.LIST_HIGHLIGHT))
                             .append(Component.literal("\n(click to change timezone)").withStyle(Styles.LIST_DEFAULT))))
-                    .withClickEvent(new ClickEvent(ClickEvent.Action.SUGGEST_COMMAND, changeTimezoneCommand))
+                    .withClickEvent(new ClickEvent.SuggestCommand(changeTimezoneCommand))
             );
 
             String tellPlayerCommand = "/tell " + snapshot.playerName() + " ";
             Component player = Component.literal(snapshot.playerName()).withStyle(Styles.LIST_HIGHLIGHT
-                    .withClickEvent(new ClickEvent(ClickEvent.Action.SUGGEST_COMMAND, tellPlayerCommand))
+                    .withClickEvent(new ClickEvent.SuggestCommand(tellPlayerCommand))
             );
 
             Component verb = snapshot.event().formatVerb().withStyle(Styles.LIST_DEFAULT);
@@ -128,18 +128,18 @@ public class InvRestoreCommand {
             hoverItem.set(DataComponents.BUNDLE_CONTENTS, new BundleContents(snapshot.contents().allItems().filter(item -> !item.isEmpty()).toList()));
             String viewSnapshotCommand = "/invrestore view "+ snapshot.id();
             Component items = Component.literal("(" + snapshot.contents().stackCount() + " stacks)").withStyle(Styles.LIST_HIGHLIGHT
-                    .withHoverEvent(new HoverEvent(HoverEvent.Action.SHOW_ITEM, new HoverEvent.ItemStackInfo(hoverItem)))
-                    .withClickEvent(new ClickEvent(ClickEvent.Action.RUN_COMMAND, viewSnapshotCommand)));
+                    .withHoverEvent(new HoverEvent.ShowItem(hoverItem))
+                    .withClickEvent(new ClickEvent.RunCommand(viewSnapshotCommand)));
 
             BlockPos pos = BlockPos.containing(snapshot.position());
             String posFormat = pos.getX() + " " + pos.getY() + " " + pos.getZ();
             String teleportCommand = "/execute in " + snapshot.dimension().location() + " run teleport @s " + snapshot.formatPos();
             Component position = Component.literal(posFormat).withStyle(Styles.LIST_DEFAULT
-                    .withHoverEvent(new HoverEvent(HoverEvent.Action.SHOW_TEXT, Component.empty()
+                    .withHoverEvent(new HoverEvent.ShowText(Component.empty()
                             .append(Component.literal(snapshot.formatPos()).withStyle(Styles.LIST_HIGHLIGHT))
                             .append(Component.literal("\n" + snapshot.dimension().location()).withStyle(Styles.LIST_DEFAULT))
                             .append(Component.literal("\n(click to teleport)").withStyle(Styles.LIST_DEFAULT))))
-                    .withClickEvent(new ClickEvent(ClickEvent.Action.RUN_COMMAND, teleportCommand)));
+                    .withClickEvent(new ClickEvent.RunCommand(teleportCommand)));
 
             ctx.sendSuccess(() -> Component.empty()
                     .append(snapshot.event().formatEmoji(false))

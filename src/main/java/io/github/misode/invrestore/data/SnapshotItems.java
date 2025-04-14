@@ -2,6 +2,8 @@ package io.github.misode.invrestore.data;
 
 import com.mojang.serialization.Codec;
 import com.mojang.serialization.codecs.RecordCodecBuilder;
+import io.github.misode.invrestore.InvRestoreEntityEquipment;
+import io.github.misode.invrestore.InvRestoreInventory;
 import net.minecraft.core.NonNullList;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.player.Inventory;
@@ -22,11 +24,12 @@ public record SnapshotItems(List<ItemStack> inventory, List<ItemStack> armor, Li
 
     public static SnapshotItems fromPlayer(ServerPlayer player) {
         Inventory inv = player.getInventory();
+        InvRestoreEntityEquipment equipment = (InvRestoreEntityEquipment)((InvRestoreInventory)inv).inv_restore$getEquipment();
         PlayerEnderChestContainer end = player.getEnderChestInventory();
         return new SnapshotItems(
-                inv.items.stream().map(ItemStack::copy).toList(),
-                inv.armor.stream().map(ItemStack::copy).toList(),
-                inv.offhand.stream().map(ItemStack::copy).toList(),
+                ((InvRestoreInventory)inv).inv_restore$getItems().stream().map(ItemStack::copy).toList(),
+                equipment.inv_restore$getArmor().stream().map(ItemStack::copy).toList(),
+                equipment.inv_restore$getOffhand().stream().map(ItemStack::copy).toList(),
                 end.items.stream().map(ItemStack::copy).toList()
         );
     }

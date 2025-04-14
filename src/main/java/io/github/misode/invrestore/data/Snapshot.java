@@ -133,7 +133,7 @@ public record Snapshot(String id, Event event, UUID playerUuid, String playerNam
         @Override
         public MutableComponent formatVerb() {
             return Component.literal("died").withStyle(Style.EMPTY
-                    .withHoverEvent(new HoverEvent(HoverEvent.Action.SHOW_TEXT, Component.literal(this.deathMessage)
+                    .withHoverEvent(new HoverEvent.ShowText(Component.literal(this.deathMessage)
                             .withStyle(Styles.LIST_HIGHLIGHT)))
             );
         }
@@ -201,7 +201,7 @@ public record Snapshot(String id, Event event, UUID playerUuid, String playerNam
         @Override
         public MutableComponent formatVerb() {
             return Component.literal("traveled").withStyle(Style.EMPTY
-                    .withHoverEvent(new HoverEvent(HoverEvent.Action.SHOW_TEXT, Component.empty()
+                    .withHoverEvent(new HoverEvent.ShowText(Component.empty()
                             .append(Component.literal(formatLevel(origin)).withStyle(Styles.LIST_HIGHLIGHT))
                             .append(Component.literal(" ➡ ").withStyle(Styles.LIST_DEFAULT))
                             .append(Component.literal(formatLevel(destination)).withStyle(Styles.LIST_HIGHLIGHT))
