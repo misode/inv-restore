@@ -29,7 +29,7 @@ dependencies {
     modImplementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_version}"
 
     modImplementation include("me.lucko:fabric-permissions-api:0.3.3")
-    modImplementation include("eu.pb4:sgui:1.7.2+1.21.2")
+    modImplementation include("eu.pb4:sgui:1.8.2+1.21.4")
 }
 
 processResources {
