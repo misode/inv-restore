@@ -23,6 +23,6 @@
     "fabric-permissions-api-v0": "*",
     "fabricloader": ">=${loader_version}",
     "fabric": "*",
-    "minecraft": "${minecraft_version}"
+    "minecraft": ">=1.21.5"
   }
 }
