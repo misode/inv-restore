@@ -45,7 +45,7 @@ public record Snapshot(String id, Event event, UUID playerUuid, String playerNam
     public static Snapshot create(ServerPlayer player, Event event) {
         String id = RandomBase62.generate(12);
         UUID playerUuid = player.getUUID();
-        String playerName = player.getGameProfile().getName();
+        String playerName = player.getGameProfile().name();
         SnapshotItems contents = SnapshotItems.fromPlayer(player);
         return new Snapshot(id, event, playerUuid, playerName, Instant.now(), player.level().dimension(), player.position(), contents);
     }
