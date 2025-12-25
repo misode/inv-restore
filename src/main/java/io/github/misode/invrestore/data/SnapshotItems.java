@@ -35,10 +35,16 @@ public record SnapshotItems(List<ItemStack> inventory, List<ItemStack> armor, Li
     }
 
     public int stackCount() {
-        return this.allItems()
-                .filter(item -> !item.isEmpty())
+        return this.inventoryItems()
                 .mapToInt(item -> 1)
                 .sum();
+    }
+
+    public Stream<ItemStack> inventoryItems() {
+        return Stream.of(this.inventory, this.armor, this.offhand)
+                .flatMap(List::stream)
+                .filter(item -> !item.isEmpty())
+                .map(ItemStack::copy);
     }
 
     public Stream<ItemStack> allItems() {

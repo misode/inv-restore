@@ -21,6 +21,7 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.HoverEvent;
 import net.minecraft.resources.Identifier;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.server.permissions.PermissionLevel;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.item.component.BundleContents;
@@ -44,9 +45,9 @@ public class InvRestoreCommand {
 
     public static void register(CommandDispatcher<CommandSourceStack> dispatcher, CommandBuildContext buildContext) {
         LiteralCommandNode<CommandSourceStack> ir = dispatcher.register(literal("invrestore")
-                .requires(ctx -> Permissions.check(ctx, "invrestore", 2))
+                .requires(ctx -> Permissions.check(ctx, "invrestore", PermissionLevel.GAMEMASTERS))
                 .then(literal("list")
-                        .requires(ctx -> Permissions.check(ctx, "invrestore.list", 2))
+                        .requires(ctx -> Permissions.check(ctx, "invrestore.list", PermissionLevel.GAMEMASTERS))
                         .then(argument("player", StringArgumentType.word())
                                 .suggests((ctx, builder) -> SharedSuggestionProvider.suggest(InvRestore.getPlayerNames(), builder))
                                 .executes((ctx) -> listPlayerSnapshot(ctx.getSource(), StringArgumentType.getString(ctx, "player")))
@@ -55,7 +56,7 @@ public class InvRestoreCommand {
                                         .executes((ctx) -> listPlayerSnapshot(ctx.getSource(), StringArgumentType.getString(ctx, "player"), StringArgumentType.getString(ctx, "type")))
                                 )))
                 .then(literal("view")
-                        .requires(ctx -> Permissions.check(ctx, "invrestore.view", 2))
+                        .requires(ctx -> Permissions.check(ctx, "invrestore.view", PermissionLevel.GAMEMASTERS))
                         .then(argument("id", StringArgumentType.word())
                                 .suggests((ctx, builder) -> SharedSuggestionProvider.suggest(InvRestore.getAllIds(), builder))
                                 .executes((ctx) -> viewSnapshot(ctx.getSource(), StringArgumentType.getString(ctx, "id")))))
@@ -64,10 +65,10 @@ public class InvRestoreCommand {
                                 .suggests((ctx, builder) -> SharedSuggestionProvider.suggest(ZoneId.getAvailableZoneIds(), builder))
                                 .executes((ctx) -> changePreferredZone(ctx.getSource(), StringArgumentType.getString(ctx, "zone")))))
                 .then(literal("reload")
-                        .requires(ctx -> Permissions.check(ctx, "invrestore.reload", 3))
+                        .requires(ctx -> Permissions.check(ctx, "invrestore.reload", PermissionLevel.ADMINS))
                         .executes((ctx) -> reloadConfig(ctx.getSource()))));
         dispatcher.register(literal("ir")
-                .requires(ctx -> Permissions.check(ctx, "invrestore", 2))
+                .requires(ctx -> Permissions.check(ctx, "invrestore", PermissionLevel.GAMEMASTERS))
                 .redirect(ir));
     }
 
@@ -125,7 +126,7 @@ public class InvRestoreCommand {
             hoverItem.set(DataComponents.LORE, new ItemLore(List.of(Component.literal("(click to view)")
                     .withStyle(Styles.LIST_DEFAULT.withItalic(false))
             )));
-            hoverItem.set(DataComponents.BUNDLE_CONTENTS, new BundleContents(snapshot.contents().allItems().filter(item -> !item.isEmpty()).toList()));
+            hoverItem.set(DataComponents.BUNDLE_CONTENTS, new BundleContents(snapshot.contents().inventoryItems().toList()));
             String viewSnapshotCommand = "/invrestore view "+ snapshot.id();
             Component items = Component.literal("(" + snapshot.contents().stackCount() + " stacks)").withStyle(Styles.LIST_HIGHLIGHT
                     .withHoverEvent(new HoverEvent.ShowItem(hoverItem))
