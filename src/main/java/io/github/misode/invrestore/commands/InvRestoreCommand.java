@@ -151,10 +151,11 @@ public class InvRestoreCommand {
                     false
             );
         });
-        if (snapshots.size() > 5) {
-            ctx.sendSuccess(() -> (Component.literal("and " + (snapshots.size() - 5) + " more...")
-                    .withStyle(Styles.LIST_DEFAULT)),
-                    false);
+        int maxResults = config.maxResults();
+        if (snapshots.size() > maxResults) {
+                ctx.sendSuccess(() -> (Component.literal("and " + (snapshots.size() - maxResults) + "more...")
+                .withStyle(Styles.LIST_DEFAULT)),
+                false);
         }
         return snapshots.size();
     }

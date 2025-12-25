@@ -65,7 +65,7 @@ public record InvRestoreConfig(QueryResults queryResults, StoreLimits storeLimit
     public record QueryResults(int maxResults, ZoneId defaultZone, String fullTimeFormat) {
         public static final QueryResults DEFAULT = new QueryResults(5, ZoneId.of("UTC"), "yyyy-MM-dd HH:mm:ss (z)");
         public static final Codec<QueryResults> CODEC = RecordCodecBuilder.create(b -> b.group(
-                optionalField(Codec.intRange(1, 10), "max_results", DEFAULT.maxResults).forGetter(QueryResults::maxResults),
+                optionalField(Codec.intRange(1, 1000), "max_results", DEFAULT.maxResults).forGetter(QueryResults::maxResults),
                 optionalField(Codec.STRING.xmap(ZoneId::of, ZoneId::toString), "default_timezone", DEFAULT.defaultZone).forGetter(QueryResults::defaultZone),
                 optionalField(Codec.STRING.comapFlatMap(s -> {
                     try {
