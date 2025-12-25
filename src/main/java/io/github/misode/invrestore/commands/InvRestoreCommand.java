@@ -19,7 +19,7 @@ import net.minecraft.core.component.DataComponents;
 import net.minecraft.network.chat.ClickEvent;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.HoverEvent;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
@@ -51,7 +51,7 @@ public class InvRestoreCommand {
                                 .suggests((ctx, builder) -> SharedSuggestionProvider.suggest(InvRestore.getPlayerNames(), builder))
                                 .executes((ctx) -> listPlayerSnapshot(ctx.getSource(), StringArgumentType.getString(ctx, "player")))
                                 .then(argument("type", StringArgumentType.word())
-                                        .suggests((ctx, builder) -> SharedSuggestionProvider.suggest(Snapshot.EventType.REGISTRY.keySet().stream().map(ResourceLocation::getPath), builder))
+                                        .suggests((ctx, builder) -> SharedSuggestionProvider.suggest(Snapshot.EventType.REGISTRY.keySet().stream().map(Identifier::getPath), builder))
                                         .executes((ctx) -> listPlayerSnapshot(ctx.getSource(), StringArgumentType.getString(ctx, "player"), StringArgumentType.getString(ctx, "type")))
                                 )))
                 .then(literal("view")
@@ -133,11 +133,11 @@ public class InvRestoreCommand {
 
             BlockPos pos = BlockPos.containing(snapshot.position());
             String posFormat = pos.getX() + " " + pos.getY() + " " + pos.getZ();
-            String teleportCommand = "/execute in " + snapshot.dimension().location() + " run teleport @s " + snapshot.formatPos();
+            String teleportCommand = "/execute in " + snapshot.dimension().identifier() + " run teleport @s " + snapshot.formatPos();
             Component position = Component.literal(posFormat).withStyle(Styles.LIST_DEFAULT
                     .withHoverEvent(new HoverEvent.ShowText(Component.empty()
                             .append(Component.literal(snapshot.formatPos()).withStyle(Styles.LIST_HIGHLIGHT))
-                            .append(Component.literal("\n" + snapshot.dimension().location()).withStyle(Styles.LIST_DEFAULT))
+                            .append(Component.literal("\n" + snapshot.dimension().identifier()).withStyle(Styles.LIST_DEFAULT))
                             .append(Component.literal("\n(click to teleport)").withStyle(Styles.LIST_DEFAULT))))
                     .withClickEvent(new ClickEvent.RunCommand(teleportCommand)));
 

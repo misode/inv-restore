@@ -14,8 +14,8 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.HoverEvent;
 import net.minecraft.network.chat.MutableComponent;
 import net.minecraft.network.chat.Style;
+import net.minecraft.resources.Identifier;
 import net.minecraft.resources.ResourceKey;
-import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.util.ExtraCodecs;
 import net.minecraft.world.damagesource.DamageSource;
@@ -210,10 +210,10 @@ public record Snapshot(String id, Event event, UUID playerUuid, String playerNam
         }
 
         private static String formatLevel(ResourceKey<Level> level) {
-            if (level.location().getNamespace().equals(ResourceLocation.DEFAULT_NAMESPACE)) {
-                return level.location().getPath();
+            if (level.identifier().getNamespace().equals(Identifier.DEFAULT_NAMESPACE)) {
+                return level.identifier().getPath();
             }
-            return level.location().toString();
+            return level.identifier().toString();
         }
     }
 
