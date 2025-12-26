@@ -122,21 +122,20 @@ public class InvRestoreCommand {
                     .withStyle(Styles.LIST_DEFAULT.withItalic(false))
             )));
             hoverItem.set(DataComponents.BUNDLE_CONTENTS, new BundleContents(snapshot.contents().inventoryItems().toList()));
-            CompoundTag viewSnapshotPayload = new CompoundTag();
-            viewSnapshotPayload.put("id", StringTag.valueOf(snapshot.id()));
+            CompoundTag actionPayload = new CompoundTag();
+            actionPayload.put("id", StringTag.valueOf(snapshot.id()));
             Component items = Component.literal("(" + snapshot.contents().stackCount() + " stacks)").withStyle(Styles.LIST_HIGHLIGHT
                     .withHoverEvent(new HoverEvent.ShowItem(hoverItem))
-                    .withClickEvent(new ClickEvent.Custom(InvRestore.id("view_snapshot"), Optional.of(viewSnapshotPayload))));
+                    .withClickEvent(new ClickEvent.Custom(InvRestore.VIEW_ACTION, Optional.of(actionPayload))));
 
             BlockPos pos = BlockPos.containing(snapshot.position());
             String posFormat = pos.getX() + " " + pos.getY() + " " + pos.getZ();
-            String teleportCommand = "/execute in " + snapshot.dimension().identifier() + " run teleport @s " + snapshot.formatPos();
             Component position = Component.literal(posFormat).withStyle(Styles.LIST_DEFAULT
                     .withHoverEvent(new HoverEvent.ShowText(Component.empty()
                             .append(Component.literal(snapshot.formatPos()).withStyle(Styles.LIST_HIGHLIGHT))
                             .append(Component.literal("\n" + snapshot.dimension().identifier()).withStyle(Styles.LIST_DEFAULT))
                             .append(Component.literal("\n(click to teleport)").withStyle(Styles.LIST_DEFAULT))))
-                    .withClickEvent(new ClickEvent.RunCommand(teleportCommand)));
+                    .withClickEvent(new ClickEvent.Custom(InvRestore.TELEPORT_ACTION, Optional.of(actionPayload))));
 
             ctx.sendSuccess(() -> Component.empty()
                     .append(snapshot.event().formatEmoji(false))

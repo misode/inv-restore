@@ -5,17 +5,22 @@ import io.github.misode.invrestore.config.InvRestoreConfig;
 import io.github.misode.invrestore.data.InvRestoreDatabase;
 import io.github.misode.invrestore.data.PlayerPreferences;
 import io.github.misode.invrestore.data.Snapshot;
+import io.github.misode.invrestore.gui.SnapshotGui;
 import net.fabricmc.api.ModInitializer;
 import net.fabricmc.fabric.api.command.v2.CommandRegistrationCallback;
 import net.fabricmc.fabric.api.entity.event.v1.ServerEntityWorldChangeEvents;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayConnectionEvents;
+import net.minecraft.nbt.Tag;
 import net.minecraft.resources.Identifier;
+import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.List;
+import java.util.Optional;
+import java.util.Set;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Stream;
@@ -23,6 +28,9 @@ import java.util.stream.Stream;
 public class InvRestore implements ModInitializer {
     public static final String MOD_ID = "invrestore";
     public static final Logger LOGGER = LoggerFactory.getLogger(InvRestore.class);
+
+    public static final Identifier VIEW_ACTION = InvRestore.id("view_snapshot");
+    public static final Identifier TELEPORT_ACTION = InvRestore.id("teleport_to_snapshot");
 
     private static InvRestoreDatabase database;
     public static InvRestoreConfig config = InvRestoreConfig.DEFAULT;
@@ -79,6 +87,30 @@ public class InvRestore implements ModInitializer {
         }
         PlayerPreferences oldPreferences = getPlayerPreferences(player);
         database.preferences().put(player.getUUID(), update.apply(oldPreferences));
+    }
+
+    public static void handleCustomClickAction(ServerPlayer player, Identifier id, Optional<Tag> payload) {
+        payload
+                .flatMap(Tag::asCompound)
+                .flatMap(c -> c.getString("id"))
+                .flatMap(string -> InvRestore
+                        .findSnapshots(s -> s.id().equals(string))
+                        .stream().findAny())
+                .ifPresent(snapshot -> {
+                    if (id.equals(InvRestore.VIEW_ACTION)) {
+                        try {
+                            SnapshotGui gui = new SnapshotGui(player, snapshot);
+                            gui.open();
+                        } catch (Exception e) {
+                            InvRestore.LOGGER.error("Failed to open GUI", e);
+                        }
+                    } else if (id.equals(InvRestore.TELEPORT_ACTION)) {
+                        ServerLevel level = player.level().getServer().getLevel(snapshot.dimension());
+                        if (level != null) {
+                            player.teleportTo(level, snapshot.position().x, snapshot.position().y, snapshot.position().z, Set.of(), 0f, 0f, false);
+                        }
+                    }
+                });
     }
 
     private static Stream<Snapshot> getSnapshots() {
