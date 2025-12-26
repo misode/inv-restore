@@ -6,6 +6,7 @@
   "mixins": [
     "EntityEquipmentMixin",
     "InventoryMixin",
+    "ServerCommonPacketListenerImplMixin",
     "ServerPlayerMixin"
   ],
   "client": [

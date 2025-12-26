@@ -9,18 +9,18 @@ import io.github.misode.invrestore.InvRestore;
 import io.github.misode.invrestore.Styles;
 import io.github.misode.invrestore.config.InvRestoreConfig;
 import io.github.misode.invrestore.data.Snapshot;
-import io.github.misode.invrestore.gui.SnapshotGui;
 import me.lucko.fabric.api.permissions.v0.Permissions;
 import net.minecraft.commands.CommandBuildContext;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.SharedSuggestionProvider;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.component.DataComponents;
+import net.minecraft.nbt.CompoundTag;
+import net.minecraft.nbt.StringTag;
 import net.minecraft.network.chat.ClickEvent;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.HoverEvent;
 import net.minecraft.resources.Identifier;
-import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.server.permissions.PermissionLevel;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
@@ -55,11 +55,6 @@ public class InvRestoreCommand {
                                         .suggests((ctx, builder) -> SharedSuggestionProvider.suggest(Snapshot.EventType.REGISTRY.keySet().stream().map(Identifier::getPath), builder))
                                         .executes((ctx) -> listPlayerSnapshot(ctx.getSource(), StringArgumentType.getString(ctx, "player"), StringArgumentType.getString(ctx, "type")))
                                 )))
-                .then(literal("view")
-                        .requires(ctx -> Permissions.check(ctx, "invrestore.view", PermissionLevel.GAMEMASTERS))
-                        .then(argument("id", StringArgumentType.word())
-                                .suggests((ctx, builder) -> SharedSuggestionProvider.suggest(InvRestore.getAllIds(), builder))
-                                .executes((ctx) -> viewSnapshot(ctx.getSource(), StringArgumentType.getString(ctx, "id")))))
                 .then(literal("timezone")
                         .then(argument("zone", StringArgumentType.greedyString())
                                 .suggests((ctx, builder) -> SharedSuggestionProvider.suggest(ZoneId.getAvailableZoneIds(), builder))
@@ -127,10 +122,11 @@ public class InvRestoreCommand {
                     .withStyle(Styles.LIST_DEFAULT.withItalic(false))
             )));
             hoverItem.set(DataComponents.BUNDLE_CONTENTS, new BundleContents(snapshot.contents().inventoryItems().toList()));
-            String viewSnapshotCommand = "/invrestore view "+ snapshot.id();
+            CompoundTag viewSnapshotPayload = new CompoundTag();
+            viewSnapshotPayload.put("id", StringTag.valueOf(snapshot.id()));
             Component items = Component.literal("(" + snapshot.contents().stackCount() + " stacks)").withStyle(Styles.LIST_HIGHLIGHT
                     .withHoverEvent(new HoverEvent.ShowItem(hoverItem))
-                    .withClickEvent(new ClickEvent.RunCommand(viewSnapshotCommand)));
+                    .withClickEvent(new ClickEvent.Custom(InvRestore.id("view_snapshot"), Optional.of(viewSnapshotPayload))));
 
             BlockPos pos = BlockPos.containing(snapshot.position());
             String posFormat = pos.getX() + " " + pos.getY() + " " + pos.getZ();
@@ -159,30 +155,6 @@ public class InvRestoreCommand {
                 false);
         }
         return snapshots.size();
-    }
-
-    private static int viewSnapshot(CommandSourceStack ctx, String id) {
-        Optional<Snapshot> snapshot = InvRestore
-                .findSnapshots(s -> s.id().equals(id))
-                .stream().findAny();
-        if (snapshot.isEmpty()) {
-            ctx.sendFailure(Component.literal("Cannot find the snapshot \"" + id + "\""));
-            return 0;
-        }
-        ServerPlayer player = ctx.getPlayer();
-        if (player == null) {
-            ctx.sendFailure(Component.literal("Only players can view a snapshot"));
-            return 0;
-        }
-        try {
-            SnapshotGui gui = new SnapshotGui(player, snapshot.get());
-            gui.open();
-            return 1;
-        } catch (Exception e) {
-            InvRestore.LOGGER.error("Failed to open GUI", e);
-            ctx.sendFailure(Component.literal("Failed to open the snapshot GUI"));
-            return 0;
-        }
     }
 
     private static int changePreferredZone(CommandSourceStack ctx, String zone) throws CommandSyntaxException {
