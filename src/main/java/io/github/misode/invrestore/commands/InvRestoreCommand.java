@@ -6,30 +6,18 @@ import com.mojang.brigadier.exceptions.CommandSyntaxException;
 import com.mojang.brigadier.exceptions.DynamicCommandExceptionType;
 import com.mojang.brigadier.tree.LiteralCommandNode;
 import io.github.misode.invrestore.InvRestore;
-import io.github.misode.invrestore.Styles;
 import io.github.misode.invrestore.config.InvRestoreConfig;
 import io.github.misode.invrestore.data.Snapshot;
 import me.lucko.fabric.api.permissions.v0.Permissions;
 import net.minecraft.commands.CommandBuildContext;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.SharedSuggestionProvider;
-import net.minecraft.core.BlockPos;
-import net.minecraft.core.component.DataComponents;
-import net.minecraft.nbt.CompoundTag;
-import net.minecraft.nbt.StringTag;
-import net.minecraft.network.chat.ClickEvent;
 import net.minecraft.network.chat.Component;
-import net.minecraft.network.chat.HoverEvent;
 import net.minecraft.resources.Identifier;
 import net.minecraft.server.permissions.PermissionLevel;
-import net.minecraft.world.item.ItemStack;
-import net.minecraft.world.item.Items;
-import net.minecraft.world.item.component.BundleContents;
-import net.minecraft.world.item.component.ItemLore;
 
 import java.time.DateTimeException;
 import java.time.ZoneId;
-import java.time.format.DateTimeFormatter;
 import java.util.*;
 
 import static net.minecraft.commands.Commands.argument;
@@ -50,10 +38,10 @@ public class InvRestoreCommand {
                         .requires(ctx -> Permissions.check(ctx, "invrestore.list", PermissionLevel.GAMEMASTERS))
                         .then(argument("player", StringArgumentType.word())
                                 .suggests((ctx, builder) -> SharedSuggestionProvider.suggest(InvRestore.getPlayerNames(), builder))
-                                .executes((ctx) -> listPlayerSnapshot(ctx.getSource(), StringArgumentType.getString(ctx, "player")))
+                                .executes((ctx) -> listPlayerSnapshots(ctx.getSource(), StringArgumentType.getString(ctx, "player")))
                                 .then(argument("type", StringArgumentType.word())
                                         .suggests((ctx, builder) -> SharedSuggestionProvider.suggest(Snapshot.EventType.REGISTRY.keySet().stream().map(Identifier::getPath), builder))
-                                        .executes((ctx) -> listPlayerSnapshot(ctx.getSource(), StringArgumentType.getString(ctx, "player"), StringArgumentType.getString(ctx, "type")))
+                                        .executes((ctx) -> listPlayerSnapshots(ctx.getSource(), StringArgumentType.getString(ctx, "player"), StringArgumentType.getString(ctx, "type")))
                                 )))
                 .then(literal("timezone")
                         .then(argument("zone", StringArgumentType.greedyString())
@@ -67,93 +55,26 @@ public class InvRestoreCommand {
                 .redirect(ir));
     }
 
-    private static int listPlayerSnapshot(CommandSourceStack ctx, String playerName) {
-        List<Snapshot> snapshots = InvRestore
-                .findSnapshots(s -> s.playerName().equals(playerName));
-        return sendSnapshots(ctx, playerName, snapshots);
+    private static int listPlayerSnapshots(CommandSourceStack ctx, String playerName) {
+        int result = InvRestore.sendSnapshotList(ctx.getPlayer(), playerName, Optional.empty(), 1);
+        if (result == 0) {
+            ctx.sendFailure(Component.literal("No matching snapshots found"));
+            return 0;
+        }
+        return result;
     }
 
-    private static int listPlayerSnapshot(CommandSourceStack ctx, String playerName, String type) throws CommandSyntaxException {
+    private static int listPlayerSnapshots(CommandSourceStack ctx, String playerName, String type) throws CommandSyntaxException {
         Snapshot.EventType<?> eventType = Snapshot.EventType.REGISTRY.getValue(InvRestore.id(type));
         if (eventType == null) {
             throw ERROR_INVALID_EVENT_TYPE.create(type);
         }
-        List<Snapshot> snapshots = InvRestore
-                .findSnapshots(s -> s.playerName().equals(playerName) && s.event().getType().equals(eventType));
-        return sendSnapshots(ctx, playerName, snapshots);
-    }
-
-    private static int sendSnapshots(CommandSourceStack ctx, String playerName, List<Snapshot> snapshots) {
-        if (snapshots.isEmpty()) {
+        int result = InvRestore.sendSnapshotList(ctx.getPlayer(), playerName, Optional.of(eventType), 1);
+        if (result == 0) {
             ctx.sendFailure(Component.literal("No matching snapshots found"));
             return 0;
         }
-
-        ctx.sendSuccess(() -> Component.empty()
-                .append(Component.literal("--- Listing snapshots of ").withStyle(Styles.HEADER_DEFAULT))
-                .append(Component.literal(playerName).withStyle(Styles.HEADER_HIGHLIGHT))
-                .append(" ---").withStyle(Styles.HEADER_DEFAULT),
-                false
-        );
-
-        InvRestoreConfig.QueryResults config = InvRestore.config.queryResults();
-
-        snapshots.stream().limit(config.maxResults()).forEach(snapshot -> {
-            ZoneId zone = InvRestore.getPlayerPreferences(ctx.getPlayer()).timezone().orElse(config.defaultZone());
-            DateTimeFormatter timeFormat = DateTimeFormatter.ofPattern(config.fullTimeFormat()).withZone(zone).withLocale(Locale.ROOT);
-            String changeTimezoneCommand = "/invrestore timezone ";
-            Component time = Component.literal(snapshot.formatTimeAgo()).withStyle(Styles.LIST_DEFAULT
-                    .withHoverEvent(new HoverEvent.ShowText(Component.empty()
-                            .append(Component.literal(timeFormat.format(snapshot.time())).withStyle(Styles.LIST_HIGHLIGHT))
-                            .append(Component.literal("\n(click to change timezone)").withStyle(Styles.LIST_DEFAULT))))
-                    .withClickEvent(new ClickEvent.SuggestCommand(changeTimezoneCommand))
-            );
-
-            String tellPlayerCommand = "/tell " + snapshot.playerName() + " ";
-            Component player = Component.literal(snapshot.playerName()).withStyle(Styles.LIST_HIGHLIGHT
-                    .withClickEvent(new ClickEvent.SuggestCommand(tellPlayerCommand))
-            );
-
-            Component verb = snapshot.event().formatVerb().withStyle(Styles.LIST_DEFAULT);
-
-            ItemStack hoverItem = Items.BUNDLE.getDefaultInstance();
-            hoverItem.set(DataComponents.ITEM_NAME, Component.literal("Inventory Preview").withStyle(Styles.LIST_HIGHLIGHT));
-            hoverItem.set(DataComponents.LORE, new ItemLore(List.of(Component.literal("(click to view)")
-                    .withStyle(Styles.LIST_DEFAULT.withItalic(false))
-            )));
-            hoverItem.set(DataComponents.BUNDLE_CONTENTS, new BundleContents(snapshot.contents().inventoryItems().toList()));
-            CompoundTag actionPayload = new CompoundTag();
-            actionPayload.put("id", StringTag.valueOf(snapshot.id()));
-            Component items = Component.literal("(" + snapshot.contents().stackCount() + " stacks)").withStyle(Styles.LIST_HIGHLIGHT
-                    .withHoverEvent(new HoverEvent.ShowItem(hoverItem))
-                    .withClickEvent(new ClickEvent.Custom(InvRestore.VIEW_ACTION, Optional.of(actionPayload))));
-
-            BlockPos pos = BlockPos.containing(snapshot.position());
-            String posFormat = pos.getX() + " " + pos.getY() + " " + pos.getZ();
-            Component position = Component.literal(posFormat).withStyle(Styles.LIST_DEFAULT
-                    .withHoverEvent(new HoverEvent.ShowText(Component.empty()
-                            .append(Component.literal(snapshot.formatPos()).withStyle(Styles.LIST_HIGHLIGHT))
-                            .append(Component.literal("\n" + snapshot.dimension().identifier()).withStyle(Styles.LIST_DEFAULT))
-                            .append(Component.literal("\n(click to teleport)").withStyle(Styles.LIST_DEFAULT))))
-                    .withClickEvent(new ClickEvent.Custom(InvRestore.TELEPORT_ACTION, Optional.of(actionPayload))));
-
-            ctx.sendSuccess(() -> Component.empty()
-                    .append(snapshot.event().formatEmoji(false))
-                    .append(" ").append(time)
-                    .append(" ").append(player)
-                    .append(" ").append(verb)
-                    .append(" ").append(items)
-                    .append(" ").append(position),
-                    false
-            );
-        });
-        int maxResults = config.maxResults();
-        if (snapshots.size() > maxResults) {
-                ctx.sendSuccess(() -> (Component.literal("and " + (snapshots.size() - maxResults) + "more...")
-                .withStyle(Styles.LIST_DEFAULT)),
-                false);
-        }
-        return snapshots.size();
+        return result;
     }
 
     private static int changePreferredZone(CommandSourceStack ctx, String zone) throws CommandSyntaxException {
