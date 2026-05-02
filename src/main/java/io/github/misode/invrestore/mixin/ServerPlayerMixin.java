@@ -13,6 +13,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 public class ServerPlayerMixin {
     @Inject(method = "die", at = @At("HEAD"), order = 100)
     private void die(DamageSource damageSource, CallbackInfo ci) {
-        InvRestore.addSnapshot(Snapshot.fromDeath((ServerPlayer)(Object)this, damageSource));
+        ServerPlayer player = (ServerPlayer)(Object)this;
+        InvRestore.addSnapshot(player.level().getServer(), Snapshot.fromDeath(player, damageSource));
     }
 }
