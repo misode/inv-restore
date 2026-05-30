@@ -13,7 +13,14 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 @Mixin(ServerCommonPacketListenerImpl.class)
 public abstract class ServerCommonPacketListenerImplMixin {
-    @Inject(method = "handleCustomClickAction", at = @At(value = "HEAD"), cancellable = true)
+    @Inject(
+        method = "handleCustomClickAction",
+        at = @At(
+            value = "INVOKE",
+            target = "Lnet/minecraft/server/MinecraftServer;handleCustomClickAction(Lnet/minecraft/resources/Identifier;Ljava/util/Optional;)V"
+        ),
+        cancellable = true
+    )
     private void handleCustomClickAction(ServerboundCustomClickActionPacket packet, CallbackInfo ci) {
         if (!packet.id().getNamespace().equals(InvRestore.MOD_ID)) {
             return;
