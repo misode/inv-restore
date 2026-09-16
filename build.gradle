@@ -29,6 +29,7 @@ dependencies {
 
     implementation include("me.lucko:fabric-permissions-api:${project.fabric_permissions_api_version}")
     implementation include("eu.pb4:sgui:${project.sgui_version}")
+    implementation include("eu.pb4:player-data-api:${project.player_data_api_version}")
 }
 
 processResources {

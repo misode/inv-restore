@@ -1,8 +1,11 @@
 package io.github.misode.invrestore;
 
+import eu.pb4.playerdata.api.PlayerDataApi;
+import eu.pb4.playerdata.api.storage.NbtCodecDataStorage;
 import io.github.misode.invrestore.commands.InvRestoreCommand;
 import io.github.misode.invrestore.config.InvRestoreConfig;
 import io.github.misode.invrestore.data.InvRestoreDatabase;
+import io.github.misode.invrestore.data.PlayerSnapshotStorage;
 import io.github.misode.invrestore.data.PlayerPreferences;
 import io.github.misode.invrestore.data.Snapshot;
 import io.github.misode.invrestore.gui.SnapshotGui;
@@ -23,6 +26,7 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.HoverEvent;
 import net.minecraft.network.chat.Style;
 import net.minecraft.resources.Identifier;
+import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.item.ItemStack;
@@ -37,7 +41,6 @@ import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.util.function.Function;
-import java.util.function.Predicate;
 import java.util.stream.Stream;
 
 public class InvRestore implements ModInitializer {
@@ -48,11 +51,15 @@ public class InvRestore implements ModInitializer {
     public static final Identifier TELEPORT_ACTION = InvRestore.id("teleport_to_snapshot");
     public static final Identifier CHANGE_PAGE_ACTION = InvRestore.id("change_page");
 
+    public static final NbtCodecDataStorage<PlayerSnapshotStorage> PLAYER_DATA_STORAGE = new NbtCodecDataStorage<>("invrestore", PlayerSnapshotStorage.CODEC);
+
     private static InvRestoreDatabase database;
     public static InvRestoreConfig config = InvRestoreConfig.DEFAULT;
 
     @Override
     public void onInitialize() {
+        PlayerDataApi.register(PLAYER_DATA_STORAGE);
+
         CommandRegistrationCallback.EVENT.register((dispatcher, buildContext, environment) -> {
             InvRestoreCommand.register(dispatcher, buildContext);
         });
@@ -61,6 +68,7 @@ public class InvRestore implements ModInitializer {
             try {
                 InvRestore.config = InvRestoreConfig.load().orElse(InvRestoreConfig.DEFAULT);
                 InvRestore.database = InvRestoreDatabase.load(server);
+                InvRestore.LOGGER.info("Loaded snapshots database.");
             } catch (Exception e) {
                 InvRestore.LOGGER.error("Something went wrong during startup:", e);
             }
@@ -76,13 +84,13 @@ public class InvRestore implements ModInitializer {
             }
         });
         ServerPlayConnectionEvents.JOIN.register((listener, sender, server) -> {
-            addSnapshot(Snapshot.fromJoin(listener.player));
+            addSnapshot(server, Snapshot.fromJoin(listener.player));
         });
         ServerPlayConnectionEvents.DISCONNECT.register((listener, server) -> {
-            addSnapshot(Snapshot.fromDisconnect(listener.player));
+            addSnapshot(server, Snapshot.fromDisconnect(listener.player));
         });
         ServerEntityLevelChangeEvents.AFTER_PLAYER_CHANGE_LEVEL.register((player, origin, destination) -> {
-            addSnapshot(Snapshot.fromLevelChange(player, origin.dimension()));
+            addSnapshot(player.level().getServer(), Snapshot.fromLevelChange(player, origin.dimension()));
         });
     }
 
@@ -112,8 +120,9 @@ public class InvRestore implements ModInitializer {
             return 0;
         }
 
-        List<Snapshot> snapshots = InvRestore
-                .findSnapshots(s -> s.playerName().equals(playerName) && (eventType.isEmpty() || s.event().getType().equals(eventType.get())));
+        List<Snapshot> snapshots = InvRestore.getSnapshots(receiver.level().getServer(), playerName)
+                .filter(s -> (eventType.isEmpty() || s.event().getType().equals(eventType.get())))
+                .toList();
         if (snapshots.isEmpty()) {
             return 0;
         }
@@ -153,6 +162,7 @@ public class InvRestore implements ModInitializer {
             )));
             hoverItem.set(DataComponents.BUNDLE_CONTENTS, new BundleContents(snapshot.contents().inventoryItems().map(ItemStackTemplate::fromNonEmptyStack).toList()));
             CompoundTag snapshotPayload = new CompoundTag();
+            snapshotPayload.put("player_name", StringTag.valueOf(playerName));
             snapshotPayload.put("id", StringTag.valueOf(snapshot.id()));
             Component items = Component.literal("(" + snapshot.contents().stackCount() + " stacks)").withStyle(Styles.LIST_HIGHLIGHT
                     .withHoverEvent(new HoverEvent.ShowItem(ItemStackTemplate.fromNonEmptyStack(hoverItem)))
@@ -226,10 +236,13 @@ public class InvRestore implements ModInitializer {
         }
         payload
                 .flatMap(Tag::asCompound)
-                .flatMap(c -> c.getString("id"))
-                .flatMap(string -> InvRestore
-                        .findSnapshots(s -> s.id().equals(string))
-                        .stream().findAny())
+                .flatMap(c -> {
+                    String playerName = c.getStringOr("player_name", "");
+                    String snapshotId = c.getStringOr("id", "");
+                    return InvRestore.getSnapshots(player.level().getServer(), playerName)
+                            .filter(s -> s.id().equals(snapshotId))
+                            .findAny();
+                })
                 .ifPresent(snapshot -> {
                     if (id.equals(InvRestore.VIEW_ACTION)) {
                         try {
@@ -247,42 +260,45 @@ public class InvRestore implements ModInitializer {
                 });
     }
 
-    private static Stream<Snapshot> getSnapshots() {
+    public static Stream<Snapshot> getSnapshots(MinecraftServer server, String playerName) {
         if (database == null) {
             return Stream.of();
         }
-        return database.snapshots().stream();
+        UUID savedUuid = database.savedPlayers().get(playerName);
+        if (savedUuid == null) {
+            return Stream.of();
+        }
+        return InvRestore.getSnapshots(server, savedUuid);
     }
 
-    public static void addSnapshot(Snapshot snapshot) {
+    public static Stream<Snapshot> getSnapshots(MinecraftServer server, UUID uuid) {
+        PlayerSnapshotStorage storage = PlayerDataApi.getCustomDataFor(server, uuid, PLAYER_DATA_STORAGE);
+        if (storage == null) {
+            return Stream.of();
+        }
+        return storage.snapshots().stream().sorted();
+    }
+
+    public static void addSnapshot(MinecraftServer server, Snapshot snapshot) {
         try {
-            if (database == null) {
-                throw new IllegalStateException("The database isn't loaded");
+            if (database != null) {
+                database.savedPlayers().put(snapshot.playerName(), snapshot.playerUuid());
             }
-            database.snapshots().add(snapshot);
+            PlayerSnapshotStorage storage = PlayerDataApi.getCustomDataFor(server, snapshot.playerUuid(), PLAYER_DATA_STORAGE);
+            if (storage == null) {
+                storage = new PlayerSnapshotStorage();
+            }
+            storage.snapshots().add(snapshot);
+            PlayerDataApi.setCustomDataFor(server, snapshot.playerUuid(), PLAYER_DATA_STORAGE, storage);
         } catch (Exception e) {
             LOGGER.error("Couldn't save snapshot {} for player {}", snapshot.event(), snapshot.playerName(), e);
         }
     }
 
     public static List<String> getPlayerNames() {
-        return getSnapshots()
-                .sorted()
-                .map(Snapshot::playerName)
-                .distinct()
-                .toList();
-    }
-
-    public static List<Snapshot> findSnapshots(Predicate<Snapshot> predicate) {
-        return getSnapshots()
-                .filter(predicate)
-                .sorted()
-                .toList();
-    }
-
-    public static List<String> getAllIds() {
-        return getSnapshots()
-                .map(Snapshot::id)
-                .toList();
+        if (database == null) {
+            return List.of();
+        }
+        return database.savedPlayers().keySet().stream().toList();
     }
 }

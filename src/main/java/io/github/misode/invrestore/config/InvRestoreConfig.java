@@ -78,11 +78,10 @@ public record InvRestoreConfig(QueryResults queryResults, StoreLimits storeLimit
         ).apply(b, QueryResults::new));
     }
 
-    public record StoreLimits(int maxPerPlayer, int maxTotal) {
-        public static final StoreLimits DEFAULT = new StoreLimits(50, 10_000);
+    public record StoreLimits(int maxPerPlayer) {
+        public static final StoreLimits DEFAULT = new StoreLimits(50);
         public static final Codec<StoreLimits> CODEC = RecordCodecBuilder.create(b -> b.group(
-                optionalField(Codec.intRange(1, Integer.MAX_VALUE), "max_per_player", DEFAULT.maxPerPlayer).forGetter(StoreLimits::maxPerPlayer),
-                optionalField(Codec.intRange(1, Integer.MAX_VALUE), "max_total", DEFAULT.maxTotal).forGetter(StoreLimits::maxTotal)
+                optionalField(Codec.intRange(1, Integer.MAX_VALUE), "max_per_player", DEFAULT.maxPerPlayer).forGetter(StoreLimits::maxPerPlayer)
         ).apply(b, StoreLimits::new));
     }
 

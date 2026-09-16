@@ -2,6 +2,7 @@ package io.github.misode.invrestore.data;
 
 import com.mojang.serialization.Codec;
 import com.mojang.serialization.codecs.RecordCodecBuilder;
+import eu.pb4.playerdata.api.PlayerDataApi;
 import io.github.misode.invrestore.InvRestore;
 import net.minecraft.util.Util;
 import net.minecraft.core.UUIDUtil;
@@ -13,49 +14,53 @@ import net.minecraft.world.level.storage.LevelResource;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.*;
-import java.util.stream.Collectors;
 
-public record InvRestoreDatabase(int format, List<Snapshot> snapshots, Map<UUID, PlayerPreferences> preferences) {
+public record InvRestoreDatabase(int format, List<Snapshot> snapshots, Map<UUID, PlayerPreferences> preferences, Map<String, UUID> savedPlayers) {
     public static final String FILE_NAME = "invrestore.dat";
-    public static final int FORMAT_VERSION = 1;
+    public static final int FORMAT_VERSION = 2;
     public static final Codec<InvRestoreDatabase> CODEC = RecordCodecBuilder.create(b -> b.group(
             Codec.INT.fieldOf("format_version").forGetter(InvRestoreDatabase::format),
             Snapshot.CODEC.listOf().fieldOf("snapshots").orElse(List.of()).forGetter(InvRestoreDatabase::snapshots),
-            Codec.unboundedMap(UUIDUtil.STRING_CODEC, PlayerPreferences.CODEC).fieldOf("player_preferences").orElse(Map.of()).forGetter(InvRestoreDatabase::preferences)
+            Codec.unboundedMap(UUIDUtil.STRING_CODEC, PlayerPreferences.CODEC).fieldOf("player_preferences").orElse(Map.of()).forGetter(InvRestoreDatabase::preferences),
+            Codec.unboundedMap(Codec.STRING, UUIDUtil.CODEC).fieldOf("saved_players").orElse(Map.of()).forGetter(InvRestoreDatabase::savedPlayers)
     ).apply(b, InvRestoreDatabase::new));
 
-    public InvRestoreDatabase(int format, List<Snapshot> snapshots, Map<UUID, PlayerPreferences> preferences) {
+    public InvRestoreDatabase(int format, List<Snapshot> snapshots, Map<UUID, PlayerPreferences> preferences, Map<String, UUID> savedPlayers) {
         this.format = format;
         this.snapshots = new ArrayList<>(snapshots);
         this.preferences = new HashMap<>(preferences);
+        this.savedPlayers = new HashMap<>(savedPlayers);
     }
 
     public InvRestoreDatabase() {
-        this(FORMAT_VERSION, List.of(), Map.of());
+        this(FORMAT_VERSION, List.of(), Map.of(), Map.of());
     }
 
     public static InvRestoreDatabase load(MinecraftServer server) {
         Path path = server.getWorldPath(LevelResource.ROOT)
                 .resolve("data")
                 .resolve(FILE_NAME);
+        InvRestoreDatabase database;
         try {
             RegistryOps<Tag> ops = server.registryAccess().createSerializationContext(NbtOps.INSTANCE);
             CompoundTag tag = NbtIo.readCompressed(path, NbtAccounter.unlimitedHeap());
-            return InvRestoreDatabase.CODEC.decode(ops, tag)
-                    .getOrThrow().getFirst();
+            database = InvRestoreDatabase.CODEC.decode(ops, tag).getOrThrow().getFirst();
         } catch (IOException e) {
             InvRestore.LOGGER.info("Creating new file " + FILE_NAME);
-            InvRestoreDatabase newStore = new InvRestoreDatabase();
-            newStore.save(server);
-            return newStore;
+            InvRestoreDatabase newDatabase = new InvRestoreDatabase();
+            newDatabase.save(server);
+            return newDatabase;
         }
+        if (database.format < FORMAT_VERSION) {
+            return migrate(database, server);
+        }
+        return database;
     }
 
     public void save(MinecraftServer server) {
         Path path = server.getWorldPath(LevelResource.ROOT)
                 .resolve("data")
                 .resolve(FILE_NAME);
-        this.enforceLimits();
         RegistryOps<Tag> ops = server.registryAccess().createSerializationContext(NbtOps.INSTANCE);
         InvRestoreDatabase.CODEC.encodeStart(ops, this)
                 .ifSuccess(tag -> {
@@ -68,21 +73,23 @@ public record InvRestoreDatabase(int format, List<Snapshot> snapshots, Map<UUID,
                 .resultOrPartial(Util.prefix("Failed to save " + FILE_NAME + ": ", InvRestore.LOGGER::error));
     }
 
-    public void enforceLimits() {
-        int maxPerPlayer = InvRestore.config.storeLimits().maxPerPlayer();
-        int maxTotal = InvRestore.config.storeLimits().maxTotal();
-        List<Snapshot> newSnapshots = snapshots.stream()
-                .collect(Collectors.groupingBy(Snapshot::playerUuid))
-                .values().stream()
-                .flatMap(playerSnapshots -> playerSnapshots.stream()
-                        .sorted(Comparator.comparing(Snapshot::time))
-                        .skip(Math.max(0, playerSnapshots.size() - maxPerPlayer)))
-                .sorted(Comparator.comparing(Snapshot::time))
-                .toList();
-        if (newSnapshots.size() > maxTotal) {
-            newSnapshots = newSnapshots.subList(newSnapshots.size() - maxTotal, newSnapshots.size());
+    private static InvRestoreDatabase migrate(InvRestoreDatabase database, MinecraftServer server) {
+        InvRestore.LOGGER.info("Migrating database with {} snapshots...", database.snapshots.size());
+        if (database.format < 2) {
+            Map<String, UUID> savedPlayers = new HashMap<>(database.savedPlayers);
+            for (Snapshot snapshot : database.snapshots()) {
+                PlayerSnapshotStorage storage = PlayerDataApi.getCustomDataFor(server, snapshot.playerUuid(), InvRestore.PLAYER_DATA_STORAGE);
+                if (storage == null) {
+                    storage = new PlayerSnapshotStorage();
+                }
+                storage.snapshots().add(snapshot);
+                PlayerDataApi.setCustomDataFor(server, snapshot.playerUuid(), InvRestore.PLAYER_DATA_STORAGE, storage);
+                savedPlayers.put(snapshot.playerName(), snapshot.playerUuid());
+            }
+            database = new InvRestoreDatabase(2, List.of(), database.preferences, savedPlayers);
         }
-        this.snapshots.clear();
-        this.snapshots.addAll(newSnapshots);
+        InvRestore.LOGGER.info("Migration done!");
+        database.save(server);
+        return database;
     }
 }
