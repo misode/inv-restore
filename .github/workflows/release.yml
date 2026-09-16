@@ -27,7 +27,7 @@ jobs:
       - name: Build
         run: ./gradlew build
       - name: Get version
-        run: echo "version=$(jq -r .version src/main/resources/fabric.mod.json)" >> $GITHUB_ENV
+        run: echo "version=$(grep -m1 '^version=' gradle.properties | cut -d= -f2)" >> $GITHUB_ENV
       - uses: Kira-NT/mc-publish@v3
         with:
           version: ${{ env.version }}
