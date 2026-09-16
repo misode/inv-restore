@@ -29,7 +29,6 @@ jobs:
       - name: Get version
         run: echo "version=$(jq -r .version src/main/resources/fabric.mod.json)" >> $GITHUB_ENV
       - uses: Kira-NT/mc-publish@v3
-        if: startsWith(github.ref, 'refs/tags/')
         with:
           version: ${{ env.version }}
           changelog: ${{ github.event.inputs.changelog }}
